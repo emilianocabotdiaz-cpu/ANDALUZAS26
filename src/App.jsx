@@ -3,6 +3,7 @@ import * as XLSX from "xlsx";
 import {
   collection,
   doc,
+  getDoc,
   onSnapshot,
   orderBy,
   query,
@@ -46,7 +47,8 @@ function applyRegistros(vots, registros) {
 
 async function guardarRegistro(vot, origen) {
   const hora = new Date().toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
-  await setDoc(doc(db, collectionNames.registros, vot.numero), {
+  const registroRef = doc(db, collectionNames.registros, vot.numero);
+  await setDoc(registroRef, {
     numero: vot.numero,
     nombre: vot.nombre,
     telefono: vot.telefono,
@@ -56,6 +58,10 @@ async function guardarRegistro(vot, origen) {
     registradoPor: origen,
     registradaEn: new Date().toISOString(),
   });
+  const saved = await getDoc(registroRef);
+  if (!saved.exists()) {
+    throw new Error("El registro no se pudo confirmar en Firebase.");
+  }
   return hora;
 }
 
@@ -296,7 +302,7 @@ function MesaScreen({ onLogout, vots, usuario, mesas }) {
     try {
       await guardarRegistro(existe, usuario);
       setNumero("");
-      setMensaje("Registrada correctamente");
+      setMensaje("Registrada y guardada en Firebase");
       setTipoMensaje("green");
     } catch {
       setMensaje("No se pudo guardar en Firebase");
@@ -472,7 +478,7 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
     try {
       await guardarRegistro(existe, "panel");
       setPanelNumero("");
-      setPanelMensaje("Registrado correctamente desde panel");
+      setPanelMensaje("Registrado y guardado en Firebase");
       setPanelMensajeTipo("green");
     } catch {
       setPanelMensaje("No se pudo guardar en Firebase");
@@ -588,6 +594,12 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
         }
         if (mesasActualizadas.length !== mesas.length) {
           setMesas(mesasActualizadas);
+        }
+        if (!panelMesa && mesasActualizadas[0]) {
+          setPanelMesa(mesasActualizadas[0].nombre);
+        }
+        if (!nuevaMesa && mesasActualizadas[0]) {
+          setNuevaMesa(mesasActualizadas[0].nombre);
         }
         if (nuevos.length) setBaseVots((prev) => [...prev, ...nuevos]);
         setMensajeImportacion(
