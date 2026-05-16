@@ -1,9 +1,6 @@
-.DS_Store
-Thumbs.db
 node_modules/
-.vercel/
-.next/
+dist/
 .env
 .env.local
-dist/
-build/
+.DS_Store
+Thumbs.db

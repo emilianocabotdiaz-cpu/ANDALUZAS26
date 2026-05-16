@@ -1,24 +1,23 @@
 {
-  "name": "opocompi",
-  "version": "0.2.0",
+  "name": "andaluzas26-top55",
+  "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.49.1",
-    "next": "^15.2.4",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "stripe": "^17.7.0"
+    "@vitejs/plugin-react": "latest",
+    "vite": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "xlsx": "latest"
   },
   "devDependencies": {
-    "@types/node": "^22.13.10",
-    "@types/react": "^19.0.10",
-    "@types/react-dom": "^19.0.4",
-    "typescript": "^5.8.2"
+    "autoprefixer": "latest",
+    "postcss": "latest",
+    "tailwindcss": "^3.4.17"
   }
 }
