@@ -103,6 +103,16 @@ function whatsappUrl(telefono, nombre) {
   return `https://wa.me/${phone}?text=${text}`;
 }
 
+function createUsuario(nombre, fallback) {
+  const normalized = String(nombre || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+  return normalized || fallback;
+}
+
 function LogoutButton({ onLogout }) {
   return (
     <button onClick={onLogout} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium">
@@ -455,22 +465,54 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
         const existentes = new Set(vots.map((v) => v.numero));
 
         const nuevos = [];
+        const responsablesActualizados = [...responsables];
+        const mesasActualizadas = [...mesas];
+        const responsablesPorNombre = new Map(
+          responsablesActualizados.map((responsable) => [responsable.nombre.trim().toLowerCase(), responsable])
+        );
+        const mesasPorNombre = new Map(
+          mesasActualizadas.map((mesaItem) => [mesaItem.nombre.trim().toLowerCase(), mesaItem])
+        );
 
-        filas.forEach((fila) => {
+        filas.forEach((fila, index) => {
           const numero = String(fila.numero || fila.referencia || "").trim();
           const nombre = String(fila.nombre || "").trim();
           const telefono = String(fila.telefono || "").trim();
           const mesa = String(fila.mesa || "").trim();
-          const nombreResponsable = String(fila.responsable || "").trim().toLowerCase();
+          const nombreResponsableOriginal = String(fila.responsable || "").trim();
+          const nombreResponsable = nombreResponsableOriginal.toLowerCase();
           const colegio = String(fila.colegio || "").trim();
 
-          const responsable = responsables.find(
-            (r) => r.nombre.trim().toLowerCase() === nombreResponsable
-          );
-
-          if (!numero || !mesa || !responsable || existentes.has(numero)) {
+          if (!numero || !mesa || !nombreResponsableOriginal || existentes.has(numero)) {
             errores += 1;
             return;
+          }
+
+          let responsable = responsablesPorNombre.get(nombreResponsable);
+          if (!responsable) {
+            responsable = {
+              id: `resp-${Date.now()}-${index}`,
+              nombre: nombreResponsableOriginal,
+              telefono: String(fila.telefono_responsable || "").trim(),
+              usuario: createUsuario(nombreResponsableOriginal, `responsable${responsablesActualizados.length + 1}`),
+              password: "1234",
+            };
+            responsablesActualizados.push(responsable);
+            responsablesPorNombre.set(nombreResponsable, responsable);
+          }
+
+          const mesaKey = mesa.toLowerCase();
+          let mesaEncontrada = mesasPorNombre.get(mesaKey);
+          if (!mesaEncontrada) {
+            mesaEncontrada = {
+              id: `mesa-${Date.now()}-${index}`,
+              nombre: mesa,
+              usuario: createUsuario(mesa, `mesa${mesasActualizadas.length + 1}`),
+              password: "1234",
+              activo: true,
+            };
+            mesasActualizadas.push(mesaEncontrada);
+            mesasPorNombre.set(mesaKey, mesaEncontrada);
           }
 
           existentes.add(numero);
@@ -478,15 +520,23 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
             numero,
             nombre,
             telefono,
-            mesa,
+            mesa: mesaEncontrada.nombre,
             responsableId: responsable.id,
             colegio,
           });
           importados += 1;
         });
 
+        if (responsablesActualizados.length !== responsables.length) {
+          setResponsables(responsablesActualizados);
+        }
+        if (mesasActualizadas.length !== mesas.length) {
+          setMesas(mesasActualizadas);
+        }
         if (nuevos.length) setBaseVots((prev) => [...prev, ...nuevos]);
-        setMensajeImportacion(`Importación completada. Correctos: ${importados}. Errores: ${errores}.`);
+        setMensajeImportacion(
+          `Importación completada. VOTs: ${importados}. Responsables nuevos: ${responsablesActualizados.length - responsables.length}. Mesas nuevas: ${mesasActualizadas.length - mesas.length}. Errores: ${errores}.`
+        );
       } catch (error) {
         setMensajeImportacion("Error al leer el Excel.");
       }
