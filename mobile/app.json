@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "OpoCompi",
+    "slug": "opocompi",
+    "scheme": "opocompi",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "../public/brand/opocompi-logo.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "../public/brand/opocompi-logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.opocompi.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "../public/brand/opocompi-logo.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.opocompi.app"
+    },
+    "extra": {
+      "apiUrl": "https://opocompi.vercel.app"
+    }
+  }
+}
