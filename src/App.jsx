@@ -17,16 +17,12 @@ const responsablesIniciales = [
 ];
 
 const mesasIniciales = [
-  { id: "1", nombre: "Mesa 1", usuario: "mesa1", password: "1234", activo: true },
   { id: "2", nombre: "Mesa 2", usuario: "mesa2", password: "1234", activo: true },
 ];
 
 const votsIniciales = [
-  { numero: "001245", nombre: "Luna", telefono: "600000001", mesa: "Mesa 1", responsableId: "1", colegio: "Colegio Norte" },
-  { numero: "001246", nombre: "Perla", telefono: "600000002", mesa: "Mesa 1", responsableId: "1", colegio: "Colegio Norte" },
   { numero: "004112", nombre: "Estrella", telefono: "600000003", mesa: "Mesa 2", responsableId: "2", colegio: "Colegio Sur" },
   { numero: "005010", nombre: "Sol", telefono: "600000004", mesa: "Mesa 2", responsableId: "2", colegio: "Colegio Sur" },
-  { numero: "008921", nombre: "Nieve", telefono: "600000005", mesa: "Mesa 1", responsableId: "3", colegio: "Colegio Norte" },
   { numero: "009101", nombre: "Sombra", telefono: "600000006", mesa: "Mesa 2", responsableId: "3", colegio: "Colegio Sur" },
 ];
 
