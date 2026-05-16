@@ -494,7 +494,8 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
   const [panelNumero, setPanelNumero] = useState("");
   const [panelMensaje, setPanelMensaje] = useState("");
   const [panelMensajeTipo, setPanelMensajeTipo] = useState("gray");
-  const [consultaFiltro, setConsultaFiltro] = useState("");
+  const [consultaMesa, setConsultaMesa] = useState("");
+  const [consultaResponsableId, setConsultaResponsableId] = useState("");
   const panelMesaTableRef = useRef(null);
 
   const total = vots.length;
@@ -502,14 +503,10 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
   const pendientes = total - llegadas;
   const votsPanelMesa = vots.filter((vot) => vot.mesa === panelMesa);
   const pendientesPanelMesa = votsPanelMesa.filter((vot) => !vot.registrada);
-  const consultaFiltroNormalizado = normalizeSearch(consultaFiltro.trim());
   const votsConsulta = vots.filter((vot) => {
-    if (!consultaFiltroNormalizado) return true;
-    const responsable = responsables.find((r) => r.id === vot.responsableId);
-    return (
-      normalizeSearch(vot.mesa).includes(consultaFiltroNormalizado) ||
-      normalizeSearch(responsable?.nombre).includes(consultaFiltroNormalizado)
-    );
+    const matchesMesa = !consultaMesa || vot.mesa === consultaMesa;
+    const matchesResponsable = !consultaResponsableId || vot.responsableId === consultaResponsableId;
+    return matchesMesa && matchesResponsable;
   });
 
   useEffect(() => {
@@ -878,13 +875,33 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
 
         <Card>
           <h2 className="text-lg font-bold text-slate-950">Consulta general</h2>
-          <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <input
-              value={consultaFiltro}
-              onChange={(e) => setConsultaFiltro(e.target.value)}
-              placeholder="Buscar por responsable o mesa"
-              className="h-11 w-full rounded-xl border border-slate-200 px-4 outline-none md:max-w-md"
-            />
+          <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="grid gap-3 md:grid-cols-2 lg:w-[680px]">
+              <select
+                value={consultaMesa}
+                onChange={(e) => setConsultaMesa(e.target.value)}
+                className="h-11 w-full rounded-xl border border-slate-200 px-4 outline-none"
+              >
+                <option value="">Todas las mesas</option>
+                {mesas.map((mesa) => (
+                  <option key={mesa.id} value={mesa.nombre}>
+                    {mesa.nombre}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={consultaResponsableId}
+                onChange={(e) => setConsultaResponsableId(e.target.value)}
+                className="h-11 w-full rounded-xl border border-slate-200 px-4 outline-none"
+              >
+                <option value="">Todos los responsables</option>
+                {responsables.map((responsable) => (
+                  <option key={responsable.id} value={responsable.id}>
+                    {responsable.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
             <span className="text-sm text-slate-500">
               {votsConsulta.length} de {vots.length} registros
             </span>
