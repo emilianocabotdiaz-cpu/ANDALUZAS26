@@ -22,12 +22,12 @@ const mesasIniciales = [
 ];
 
 const votsIniciales = [
-  { numero: "001245", nombre: "Luna", telefono: "600000001", mesa: "Mesa 1", responsableId: "1" },
-  { numero: "001246", nombre: "Perla", telefono: "600000002", mesa: "Mesa 1", responsableId: "1" },
-  { numero: "004112", nombre: "Estrella", telefono: "600000003", mesa: "Mesa 2", responsableId: "2" },
-  { numero: "005010", nombre: "Sol", telefono: "600000004", mesa: "Mesa 2", responsableId: "2" },
-  { numero: "008921", nombre: "Nieve", telefono: "600000005", mesa: "Mesa 1", responsableId: "3" },
-  { numero: "009101", nombre: "Sombra", telefono: "600000006", mesa: "Mesa 2", responsableId: "3" },
+  { numero: "001245", nombre: "Luna", telefono: "600000001", mesa: "Mesa 1", responsableId: "1", colegio: "Colegio Norte" },
+  { numero: "001246", nombre: "Perla", telefono: "600000002", mesa: "Mesa 1", responsableId: "1", colegio: "Colegio Norte" },
+  { numero: "004112", nombre: "Estrella", telefono: "600000003", mesa: "Mesa 2", responsableId: "2", colegio: "Colegio Sur" },
+  { numero: "005010", nombre: "Sol", telefono: "600000004", mesa: "Mesa 2", responsableId: "2", colegio: "Colegio Sur" },
+  { numero: "008921", nombre: "Nieve", telefono: "600000005", mesa: "Mesa 1", responsableId: "3", colegio: "Colegio Norte" },
+  { numero: "009101", nombre: "Sombra", telefono: "600000006", mesa: "Mesa 2", responsableId: "3", colegio: "Colegio Sur" },
 ];
 
 const collectionNames = {
@@ -61,6 +61,7 @@ async function guardarRegistro(vot, origen) {
     nombre: vot.nombre,
     telefono: vot.telefono,
     mesaVot: vot.mesa,
+    colegio: vot.colegio,
     hora,
     registradoPor: origen,
     registradaEn: new Date().toISOString(),
@@ -320,6 +321,7 @@ function ResponsableScreen({ onLogout, usuario, vots, responsables }) {
                   <th className="px-4 py-3 text-left">Hora</th>
                   <th className="px-4 py-3 text-left">Estado</th>
                   <th className="px-4 py-3 text-left">Aviso</th>
+                  <th className="px-4 py-3 text-left">Colegio</th>
                 </tr>
               </thead>
               <tbody>
@@ -345,6 +347,7 @@ function ResponsableScreen({ onLogout, usuario, vots, responsables }) {
                         <span className="text-slate-400">-</span>
                       )}
                     </td>
+                    <td className="px-4 py-3">{o.colegio || "-"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -362,6 +365,7 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
   const [nuevoTelefono, setNuevoTelefono] = useState("");
   const [nuevoResponsableId, setNuevoResponsableId] = useState(responsables[0]?.id || "");
   const [nuevaMesa, setNuevaMesa] = useState(mesas[0]?.nombre || "");
+  const [nuevoColegio, setNuevoColegio] = useState("");
   const [mensajeImportacion, setMensajeImportacion] = useState("");
 
   const [nombreResponsable, setNombreResponsable] = useState("");
@@ -423,12 +427,14 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
         telefono: nuevoTelefono,
         mesa: nuevaMesa,
         responsableId: String(nuevoResponsableId),
+        colegio: nuevoColegio,
       },
     ]);
 
     setNuevoNumero("");
     setNuevoNombre("");
     setNuevoTelefono("");
+    setNuevoColegio("");
   };
 
   const importarExcel = (event) => {
@@ -456,6 +462,7 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
           const telefono = String(fila.telefono || "").trim();
           const mesa = String(fila.mesa || "").trim();
           const nombreResponsable = String(fila.responsable || "").trim().toLowerCase();
+          const colegio = String(fila.colegio || "").trim();
 
           const responsable = responsables.find(
             (r) => r.nombre.trim().toLowerCase() === nombreResponsable
@@ -473,6 +480,7 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
             telefono,
             mesa,
             responsableId: responsable.id,
+            colegio,
           });
           importados += 1;
         });
@@ -584,6 +592,7 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
                   <th className="px-4 py-3 text-left">Nombre</th>
                   <th className="px-4 py-3 text-left">Teléfono</th>
                   <th className="px-4 py-3 text-left">Estado</th>
+                  <th className="px-4 py-3 text-left">Colegio</th>
                 </tr>
               </thead>
               <tbody>
@@ -593,6 +602,7 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
                     <td className="px-4 py-3">{vot.nombre}</td>
                     <td className="px-4 py-3">{vot.telefono}</td>
                     <td className="px-4 py-3">{vot.registrada ? <Badge tone="green">Ha entrado</Badge> : <Badge tone="amber">Pendiente</Badge>}</td>
+                    <td className="px-4 py-3">{vot.colegio || "-"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -613,13 +623,14 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
               <select value={nuevoResponsableId} onChange={(e) => setNuevoResponsableId(e.target.value)} className="h-11 w-full rounded-xl border border-slate-200 px-4 outline-none">
                 {responsables.map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}
               </select>
+              <input value={nuevoColegio} onChange={(e) => setNuevoColegio(e.target.value)} placeholder="Colegio" className="h-11 w-full rounded-xl border border-slate-200 px-4 outline-none" />
               <button onClick={crearVot} className="h-11 w-full rounded-xl bg-slate-950 text-white font-semibold">Crear VOT</button>
             </div>
           </Card>
 
           <Card>
             <h2 className="text-lg font-bold text-slate-950">Importar Excel</h2>
-            <p className="mt-2 text-sm text-slate-500">Columnas: numero, nombre, telefono, mesa, responsable</p>
+            <p className="mt-2 text-sm text-slate-500">Columnas: numero, nombre, telefono, mesa, responsable, colegio</p>
             <div className="mt-4 space-y-3">
               <input type="file" accept=".xlsx,.xls" onChange={importarExcel} className="block w-full text-sm text-slate-700" />
               <div className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
@@ -664,6 +675,7 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
                     <th className="px-4 py-3 text-left">Responsable</th>
                     <th className="px-4 py-3 text-left">Hora</th>
                     <th className="px-4 py-3 text-left">Estado</th>
+                    <th className="px-4 py-3 text-left">Colegio</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -678,6 +690,7 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
                         <td className="px-4 py-3">{responsable?.nombre}</td>
                         <td className="px-4 py-3">{o.hora || "-"}</td>
                         <td className="px-4 py-3">{o.registrada ? <Badge tone="green">Ha entrado</Badge> : <Badge tone="amber">Falta</Badge>}</td>
+                        <td className="px-4 py-3">{o.colegio || "-"}</td>
                       </tr>
                     );
                   })}
