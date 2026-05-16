@@ -780,8 +780,8 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
 
           <Card>
             <h2 className="text-lg font-bold text-slate-950">Consulta general</h2>
-            <div className="mt-5 overflow-hidden rounded-xl border border-slate-200">
-              <table className="min-w-full text-sm">
+            <div className="mt-5 overflow-x-auto rounded-xl border border-slate-200">
+              <table className="min-w-[980px] text-sm">
                 <thead className="bg-slate-100 text-slate-800">
                   <tr>
                     <th className="px-4 py-3 text-left">Número</th>
