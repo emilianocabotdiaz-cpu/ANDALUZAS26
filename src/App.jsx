@@ -620,17 +620,17 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
               <select value={nuevaMesa} onChange={(e) => setNuevaMesa(e.target.value)} className="h-11 w-full rounded-xl border border-slate-200 px-4 outline-none">
                 {mesas.map((mesa) => <option key={mesa.id} value={mesa.nombre}>{mesa.nombre}</option>)}
               </select>
+              <input value={nuevoColegio} onChange={(e) => setNuevoColegio(e.target.value)} placeholder="Colegio" className="h-11 w-full rounded-xl border border-slate-200 px-4 outline-none" />
               <select value={nuevoResponsableId} onChange={(e) => setNuevoResponsableId(e.target.value)} className="h-11 w-full rounded-xl border border-slate-200 px-4 outline-none">
                 {responsables.map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}
               </select>
-              <input value={nuevoColegio} onChange={(e) => setNuevoColegio(e.target.value)} placeholder="Colegio" className="h-11 w-full rounded-xl border border-slate-200 px-4 outline-none" />
               <button onClick={crearVot} className="h-11 w-full rounded-xl bg-slate-950 text-white font-semibold">Crear VOT</button>
             </div>
           </Card>
 
           <Card>
             <h2 className="text-lg font-bold text-slate-950">Importar Excel</h2>
-            <p className="mt-2 text-sm text-slate-500">Columnas: numero, nombre, telefono, mesa, responsable, colegio</p>
+            <p className="mt-2 text-sm text-slate-500">Columnas: numero, nombre, telefono, mesa, colegio, responsable</p>
             <div className="mt-4 space-y-3">
               <input type="file" accept=".xlsx,.xls" onChange={importarExcel} className="block w-full text-sm text-slate-700" />
               <div className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
@@ -672,10 +672,10 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
                     <th className="px-4 py-3 text-left">Nombre</th>
                     <th className="px-4 py-3 text-left">Teléfono</th>
                     <th className="px-4 py-3 text-left">Mesa</th>
-                    <th className="px-4 py-3 text-left">Responsable</th>
                     <th className="px-4 py-3 text-left">Hora</th>
                     <th className="px-4 py-3 text-left">Estado</th>
                     <th className="px-4 py-3 text-left">Colegio</th>
+                    <th className="px-4 py-3 text-left">Responsable</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -687,10 +687,10 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
                         <td className="px-4 py-3">{o.nombre}</td>
                         <td className="px-4 py-3">{o.telefono}</td>
                         <td className="px-4 py-3">{o.mesa}</td>
-                        <td className="px-4 py-3">{responsable?.nombre}</td>
                         <td className="px-4 py-3">{o.hora || "-"}</td>
                         <td className="px-4 py-3">{o.registrada ? <Badge tone="green">Ha entrado</Badge> : <Badge tone="amber">Falta</Badge>}</td>
                         <td className="px-4 py-3">{o.colegio || "-"}</td>
+                        <td className="px-4 py-3">{responsable?.nombre}</td>
                       </tr>
                     );
                   })}
