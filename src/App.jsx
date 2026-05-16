@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import {
   collection,
@@ -483,6 +483,7 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
   const [panelMensaje, setPanelMensaje] = useState("");
   const [panelMensajeTipo, setPanelMensajeTipo] = useState("gray");
   const [consultaFiltro, setConsultaFiltro] = useState("");
+  const panelMesaTableRef = useRef(null);
 
   const total = vots.length;
   const llegadas = vots.filter((o) => o.registrada).length;
@@ -498,6 +499,13 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
       normalizeSearch(responsable?.nombre).includes(consultaFiltroNormalizado)
     );
   });
+
+  useEffect(() => {
+    const tableContainer = panelMesaTableRef.current;
+    if (tableContainer) {
+      tableContainer.scrollTop = tableContainer.scrollHeight;
+    }
+  }, [panelMesa, votsPanelMesa.length]);
 
   const registrarDesdePanel = async () => {
     const numeroNormalizado = panelNumero.trim();
@@ -777,9 +785,9 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
           </div>
           <div className="mt-4"><Badge tone={panelMensajeTipo}>{panelMensaje || `${pendientesPanelMesa.length} pendientes en ${panelMesa}`}</Badge></div>
 
-          <div className="mt-6 overflow-hidden rounded-xl border border-slate-200">
+          <div ref={panelMesaTableRef} className="mt-6 max-h-[500px] overflow-auto rounded-xl border border-slate-200">
             <table className="min-w-full text-sm">
-              <thead className="bg-slate-100 text-slate-800">
+              <thead className="sticky top-0 bg-slate-100 text-slate-800">
                 <tr>
                   <th className="px-4 py-3 text-left">Número</th>
                   <th className="px-4 py-3 text-left">Nombre</th>
