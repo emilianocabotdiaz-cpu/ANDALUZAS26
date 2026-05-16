@@ -3,7 +3,6 @@ import * as XLSX from "xlsx";
 import {
   collection,
   doc,
-  getDoc,
   onSnapshot,
   orderBy,
   query,
@@ -23,7 +22,30 @@ const votsIniciales = [];
 
 const collectionNames = {
   registros: "registros",
+  vots: "vots",
+  responsables: "responsables",
+  mesas: "mesas",
 };
+
+function safeDocId(value) {
+  return encodeURIComponent(String(value || "").trim()).replace(/\./g, "%2E");
+}
+
+function registroDocId(numero) {
+  return safeDocId(numero);
+}
+
+async function guardarVot(vot) {
+  await setDoc(doc(db, collectionNames.vots, safeDocId(vot.numero)), vot);
+}
+
+async function guardarResponsable(responsable) {
+  await setDoc(doc(db, collectionNames.responsables, safeDocId(responsable.id)), responsable);
+}
+
+async function guardarMesa(mesa) {
+  await setDoc(doc(db, collectionNames.mesas, safeDocId(mesa.id)), mesa);
+}
 
 function withFirestoreId(documentSnapshot) {
   return { id: documentSnapshot.id, ...documentSnapshot.data() };
@@ -47,7 +69,7 @@ function applyRegistros(vots, registros) {
 
 async function guardarRegistro(vot, origen) {
   const hora = new Date().toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
-  const registroRef = doc(db, collectionNames.registros, vot.numero);
+  const registroRef = doc(db, collectionNames.registros, registroDocId(vot.numero));
   await setDoc(registroRef, {
     numero: vot.numero,
     nombre: vot.nombre,
@@ -58,11 +80,12 @@ async function guardarRegistro(vot, origen) {
     registradoPor: origen,
     registradaEn: new Date().toISOString(),
   });
-  const saved = await getDoc(registroRef);
-  if (!saved.exists()) {
-    throw new Error("El registro no se pudo confirmar en Firebase.");
-  }
   return hora;
+}
+
+function firebaseErrorMessage(error) {
+  const code = error?.code ? `${error.code}: ` : "";
+  return `${code}${error?.message || "Error desconocido"}`;
 }
 
 function Badge({ children, tone = "gray" }) {
@@ -311,8 +334,9 @@ function MesaScreen({ onLogout, vots, usuario, mesas }) {
       setNumero("");
       setMensaje("Registrada y guardada en Firebase");
       setTipoMensaje("green");
-    } catch {
-      setMensaje("No se pudo guardar en Firebase");
+    } catch (error) {
+      console.error("Error guardando registro desde mesa", error);
+      setMensaje(`Firebase: ${firebaseErrorMessage(error)}`);
       setTipoMensaje("red");
     }
   };
@@ -497,27 +521,37 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
       setPanelNumero("");
       setPanelMensaje("Registrado y guardado en Firebase");
       setPanelMensajeTipo("green");
-    } catch {
-      setPanelMensaje("No se pudo guardar en Firebase");
+    } catch (error) {
+      console.error("Error guardando registro desde panel", error);
+      setPanelMensaje(`Firebase: ${firebaseErrorMessage(error)}`);
       setPanelMensajeTipo("red");
     }
   };
 
-  const crearVot = () => {
+  const crearVot = async () => {
     if (!nuevoNumero || !nuevoResponsableId || !nuevaMesa) return;
     const numero = nuevoNumero.trim();
     if (vots.some((o) => o.numero === numero)) return;
 
+    const nuevoVot = {
+      numero,
+      nombre: nuevoNombre,
+      telefono: nuevoTelefono,
+      mesa: nuevaMesa,
+      responsableId: String(nuevoResponsableId),
+      colegio: nuevoColegio,
+    };
+
+    try {
+      await guardarVot(nuevoVot);
+    } catch (error) {
+      alert(`No se pudo guardar el VOT en Firebase: ${firebaseErrorMessage(error)}`);
+      return;
+    }
+
     setBaseVots((current) => [
       ...current,
-      {
-        numero,
-        nombre: nuevoNombre,
-        telefono: nuevoTelefono,
-        mesa: nuevaMesa,
-        responsableId: String(nuevoResponsableId),
-        colegio: nuevoColegio,
-      },
+      nuevoVot,
     ]);
 
     setNuevoNumero("");
@@ -531,7 +565,7 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const data = new Uint8Array(e.target.result);
         const workbook = XLSX.read(data, { type: "array" });
@@ -606,6 +640,12 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
           importados += 1;
         });
 
+        await Promise.all([
+          ...nuevos.map(guardarVot),
+          ...responsablesActualizados.slice(responsables.length).map(guardarResponsable),
+          ...mesasActualizadas.slice(mesas.length).map(guardarMesa),
+        ]);
+
         if (responsablesActualizados.length !== responsables.length) {
           setResponsables(responsablesActualizados);
         }
@@ -623,7 +663,7 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
           `Importación completada. VOTs: ${importados}. Responsables nuevos: ${responsablesActualizados.length - responsables.length}. Mesas nuevas: ${mesasActualizadas.length - mesas.length}. Errores: ${errores}.`
         );
       } catch (error) {
-        setMensajeImportacion("Error al leer el Excel.");
+        setMensajeImportacion(`Error al leer o guardar el Excel: ${firebaseErrorMessage(error)}.`);
       }
     };
 
@@ -631,39 +671,57 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
     event.target.value = "";
   };
 
-  const crearResponsable = () => {
+  const crearResponsable = async () => {
     if (!nombreResponsable || !passwordResponsable) return;
     const usuario = nombreResponsable.toLowerCase().split(" ")[0];
     const id = String(Date.now());
-    setResponsables((current) => [
-      ...current,
-      {
+    const responsable = {
       id,
       nombre: nombreResponsable,
       telefono: telefonoResponsable,
       usuario,
       password: passwordResponsable,
-      },
+    };
+
+    try {
+      await guardarResponsable(responsable);
+    } catch (error) {
+      alert(`No se pudo guardar el responsable en Firebase: ${firebaseErrorMessage(error)}`);
+      return;
+    }
+
+    setResponsables((current) => [
+      ...current,
+      responsable,
     ]);
     setNombreResponsable("");
     setTelefonoResponsable("");
     setPasswordResponsable("");
   };
 
-  const crearMesa = () => {
+  const crearMesa = async () => {
     if (!nombreMesa || !passwordMesa) return;
     const usuario = nombreMesa.toLowerCase().split(" ")[0] + mesas.length;
     const id = String(Date.now());
-    setMesas((current) => [
-      ...current,
-      {
+    const mesa = {
       id,
       nombre: nombreMesa,
       telefono: telefonoMesa,
       usuario,
       password: passwordMesa,
       activo: true,
-      },
+    };
+
+    try {
+      await guardarMesa(mesa);
+    } catch (error) {
+      alert(`No se pudo guardar la mesa en Firebase: ${firebaseErrorMessage(error)}`);
+      return;
+    }
+
+    setMesas((current) => [
+      ...current,
+      mesa,
     ]);
     setNombreMesa("");
     setTelefonoMesa("");
@@ -880,6 +938,33 @@ export default function App() {
       cancelled = true;
       unsubscribe();
     };
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, collectionNames.vots), (snapshot) => {
+      const firebaseVots = snapshot.docs.map(withFirestoreId);
+      if (firebaseVots.length) setBaseVots(firebaseVots);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, collectionNames.responsables), (snapshot) => {
+      const firebaseResponsables = snapshot.docs.map(withFirestoreId);
+      if (firebaseResponsables.length) setResponsables(firebaseResponsables);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, collectionNames.mesas), (snapshot) => {
+      const firebaseMesas = snapshot.docs.map(withFirestoreId);
+      if (firebaseMesas.length) setMesas(firebaseMesas);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   if (cargando) {
