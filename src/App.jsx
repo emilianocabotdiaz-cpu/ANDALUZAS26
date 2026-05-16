@@ -16,15 +16,9 @@ const responsablesIniciales = [
   { id: "3", nombre: "Antonio Ruiz", telefono: "600555666", usuario: "antonio", password: "1234" },
 ];
 
-const mesasIniciales = [
-  { id: "2", nombre: "Mesa 2", usuario: "mesa2", password: "1234", activo: true },
-];
+const mesasIniciales = [];
 
-const votsIniciales = [
-  { numero: "004112", nombre: "Estrella", telefono: "600000003", mesa: "Mesa 2", responsableId: "2", colegio: "Colegio Sur" },
-  { numero: "005010", nombre: "Sol", telefono: "600000004", mesa: "Mesa 2", responsableId: "2", colegio: "Colegio Sur" },
-  { numero: "009101", nombre: "Sombra", telefono: "600000006", mesa: "Mesa 2", responsableId: "3", colegio: "Colegio Sur" },
-];
+const votsIniciales = [];
 
 const collectionNames = {
   registros: "registros",
@@ -773,44 +767,44 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
               <button onClick={crearMesa} className="h-11 w-full rounded-xl bg-slate-950 text-white font-semibold">Crear mesa</button>
             </div>
           </Card>
-
-          <Card>
-            <h2 className="text-lg font-bold text-slate-950">Consulta general</h2>
-            <div className="mt-5 overflow-x-auto rounded-xl border border-slate-200">
-              <table className="min-w-[980px] text-sm">
-                <thead className="bg-slate-100 text-slate-800">
-                  <tr>
-                    <th className="px-4 py-3 text-left">Número</th>
-                    <th className="px-4 py-3 text-left">Nombre</th>
-                    <th className="px-4 py-3 text-left">Teléfono</th>
-                    <th className="px-4 py-3 text-left">Mesa</th>
-                    <th className="px-4 py-3 text-left">Hora</th>
-                    <th className="px-4 py-3 text-left">Estado</th>
-                    <th className="px-4 py-3 text-left">Colegio</th>
-                    <th className="px-4 py-3 text-left">Responsable</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {vots.map((o) => {
-                    const responsable = responsables.find((r) => r.id === o.responsableId);
-                    return (
-                      <tr key={o.numero} className="border-t border-slate-200">
-                        <td className="px-4 py-3 font-semibold">{o.numero}</td>
-                        <td className="px-4 py-3">{o.nombre}</td>
-                        <td className="px-4 py-3">{o.telefono}</td>
-                        <td className="px-4 py-3">{o.mesa}</td>
-                        <td className="px-4 py-3">{o.hora || "-"}</td>
-                        <td className="px-4 py-3">{o.registrada ? <Badge tone="green">Ha entrado</Badge> : <Badge tone="amber">Falta</Badge>}</td>
-                        <td className="px-4 py-3">{o.colegio || "-"}</td>
-                        <td className="px-4 py-3">{responsable?.nombre}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </Card>
         </div>
+
+        <Card>
+          <h2 className="text-lg font-bold text-slate-950">Consulta general</h2>
+          <div className="mt-5 overflow-x-auto rounded-xl border border-slate-200">
+            <table className="min-w-[1180px] text-sm">
+              <thead className="bg-slate-100 text-slate-800">
+                <tr>
+                  <th className="px-4 py-3 text-left">Número</th>
+                  <th className="px-4 py-3 text-left">Nombre</th>
+                  <th className="px-4 py-3 text-left">Teléfono</th>
+                  <th className="px-4 py-3 text-left">Mesa</th>
+                  <th className="px-4 py-3 text-left">Hora</th>
+                  <th className="px-4 py-3 text-left">Estado</th>
+                  <th className="px-4 py-3 text-left">Colegio</th>
+                  <th className="px-4 py-3 text-left">Responsable</th>
+                </tr>
+              </thead>
+              <tbody>
+                {vots.map((o) => {
+                  const responsable = responsables.find((r) => r.id === o.responsableId);
+                  return (
+                    <tr key={o.numero} className="border-t border-slate-200">
+                      <td className="px-4 py-3 font-semibold">{o.numero}</td>
+                      <td className="px-4 py-3">{o.nombre}</td>
+                      <td className="px-4 py-3">{o.telefono}</td>
+                      <td className="px-4 py-3">{o.mesa}</td>
+                      <td className="px-4 py-3">{o.hora || "-"}</td>
+                      <td className="px-4 py-3">{o.registrada ? <Badge tone="green">Ha entrado</Badge> : <Badge tone="amber">Falta</Badge>}</td>
+                      <td className="px-4 py-3">{o.colegio || "-"}</td>
+                      <td className="px-4 py-3">{responsable?.nombre}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       </div>
     </div>
   );
