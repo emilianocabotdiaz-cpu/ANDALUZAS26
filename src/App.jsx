@@ -117,6 +117,13 @@ function normalizeKey(key) {
     .replace(/[^a-z0-9]+/g, "");
 }
 
+function normalizeSearch(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
 function normalizeRow(row) {
   return Object.entries(row).reduce((normalized, [key, value]) => {
     normalized[normalizeKey(key)] = value;
@@ -451,12 +458,22 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
   const [panelNumero, setPanelNumero] = useState("");
   const [panelMensaje, setPanelMensaje] = useState("");
   const [panelMensajeTipo, setPanelMensajeTipo] = useState("gray");
+  const [consultaFiltro, setConsultaFiltro] = useState("");
 
   const total = vots.length;
   const llegadas = vots.filter((o) => o.registrada).length;
   const pendientes = total - llegadas;
   const votsPanelMesa = vots.filter((vot) => vot.mesa === panelMesa);
   const pendientesPanelMesa = votsPanelMesa.filter((vot) => !vot.registrada);
+  const consultaFiltroNormalizado = normalizeSearch(consultaFiltro.trim());
+  const votsConsulta = vots.filter((vot) => {
+    if (!consultaFiltroNormalizado) return true;
+    const responsable = responsables.find((r) => r.id === vot.responsableId);
+    return (
+      normalizeSearch(vot.mesa).includes(consultaFiltroNormalizado) ||
+      normalizeSearch(responsable?.nombre).includes(consultaFiltroNormalizado)
+    );
+  });
 
   const registrarDesdePanel = async () => {
     const numeroNormalizado = panelNumero.trim();
@@ -783,9 +800,20 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
 
         <Card>
           <h2 className="text-lg font-bold text-slate-950">Consulta general</h2>
-          <div className="mt-5 overflow-x-auto rounded-xl border border-slate-200">
+          <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <input
+              value={consultaFiltro}
+              onChange={(e) => setConsultaFiltro(e.target.value)}
+              placeholder="Buscar por responsable o mesa"
+              className="h-11 w-full rounded-xl border border-slate-200 px-4 outline-none md:max-w-md"
+            />
+            <span className="text-sm text-slate-500">
+              {votsConsulta.length} de {vots.length} registros
+            </span>
+          </div>
+          <div className="mt-5 max-h-[500px] overflow-auto rounded-xl border border-slate-200">
             <table className="min-w-[1180px] text-sm">
-              <thead className="bg-slate-100 text-slate-800">
+              <thead className="sticky top-0 bg-slate-100 text-slate-800">
                 <tr>
                   <th className="px-4 py-3 text-left">Número</th>
                   <th className="px-4 py-3 text-left">Nombre</th>
@@ -798,7 +826,7 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
                 </tr>
               </thead>
               <tbody>
-                {vots.map((o) => {
+                {votsConsulta.map((o) => {
                   const responsable = responsables.find((r) => r.id === o.responsableId);
                   return (
                     <tr key={o.numero} className="border-t border-slate-200">
