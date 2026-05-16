@@ -27,6 +27,18 @@ const collectionNames = {
   mesas: "mesas",
 };
 
+const sessionStorageKey = "andaluzas26-session";
+
+function readStoredSession() {
+  try {
+    if (typeof window === "undefined") return null;
+    const stored = window.localStorage.getItem(sessionStorageKey);
+    return stored ? JSON.parse(stored) : null;
+  } catch {
+    return null;
+  }
+}
+
 function safeDocId(value) {
   return encodeURIComponent(String(value || "").trim()).replace(/\./g, "%2E");
 }
@@ -220,7 +232,7 @@ function LoginScreen({ onLogin, responsables, mesas }) {
 
   const entrar = () => {
     if (rol === "panel") {
-      if (password === "17052026") onLogin({ rol, usuario: "admin" });
+      if (password === "1705") onLogin({ rol, usuario: "admin" });
       else alert("Contraseña incorrecta");
       return;
     }
@@ -917,7 +929,7 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
 }
 
 export default function App() {
-  const [sesion, setSesion] = useState(null);
+  const [sesion, setSesion] = useState(readStoredSession);
   const [baseVots, setBaseVots] = useState(votsIniciales);
   const [registros, setRegistros] = useState([]);
   const [responsables, setResponsables] = useState(responsablesIniciales);
@@ -925,6 +937,16 @@ export default function App() {
   const [cargando, setCargando] = useState(true);
   const [firebaseError, setFirebaseError] = useState("");
   const vots = applyRegistros(baseVots, registros);
+
+  const handleLogin = (newSession) => {
+    setSesion(newSession);
+    window.localStorage.setItem(sessionStorageKey, JSON.stringify(newSession));
+  };
+
+  const handleLogout = () => {
+    setSesion(null);
+    window.localStorage.removeItem(sessionStorageKey);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -994,22 +1016,22 @@ export default function App() {
         {firebaseError ? (
           <div className="bg-rose-50 px-5 py-3 text-sm font-medium text-rose-700">{firebaseError}</div>
         ) : null}
-        <LoginScreen onLogin={setSesion} responsables={responsables} mesas={mesas} />
+        <LoginScreen onLogin={handleLogin} responsables={responsables} mesas={mesas} />
       </>
     );
   }
 
   if (sesion.rol === "mesa") {
-    return <MesaScreen onLogout={() => setSesion(null)} vots={vots} usuario={sesion.usuario} mesas={mesas} />;
+    return <MesaScreen onLogout={handleLogout} vots={vots} usuario={sesion.usuario} mesas={mesas} />;
   }
 
   if (sesion.rol === "responsable") {
-    return <ResponsableScreen onLogout={() => setSesion(null)} usuario={sesion.usuario} vots={vots} responsables={responsables} />;
+    return <ResponsableScreen onLogout={handleLogout} usuario={sesion.usuario} vots={vots} responsables={responsables} />;
   }
 
   return (
     <PanelControlScreen
-      onLogout={() => setSesion(null)}
+      onLogout={handleLogout}
       vots={vots}
       setBaseVots={setBaseVots}
       responsables={responsables}
