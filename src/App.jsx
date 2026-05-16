@@ -17,17 +17,17 @@ const responsablesIniciales = [
 ];
 
 const mesasIniciales = [
-  { id: "1", nombre: "Mesa 1", telefono: "600777111", usuario: "mesa1", password: "1234", activo: true },
-  { id: "2", nombre: "Mesa 2", telefono: "600777222", usuario: "mesa2", password: "1234", activo: true },
+  { id: "1", nombre: "Mesa 1", usuario: "mesa1", password: "1234", activo: true },
+  { id: "2", nombre: "Mesa 2", usuario: "mesa2", password: "1234", activo: true },
 ];
 
 const votsIniciales = [
-  { referencia: "ES-001245", nombre: "Luna", telefono: "600000001", responsableId: "1", hora: "18:41", registrada: true },
-  { referencia: "ES-001246", nombre: "Perla", telefono: "600000002", responsableId: "1", hora: null, registrada: false },
-  { referencia: "ES-004112", nombre: "Estrella", telefono: "600000003", responsableId: "2", hora: "18:37", registrada: true },
-  { referencia: "ES-005010", nombre: "Sol", telefono: "600000004", responsableId: "2", hora: null, registrada: false },
-  { referencia: "ES-008921", nombre: "Nieve", telefono: "600000005", responsableId: "3", hora: "18:39", registrada: true },
-  { referencia: "ES-009101", nombre: "Sombra", telefono: "600000006", responsableId: "3", hora: null, registrada: false },
+  { numero: "001245", nombre: "Luna", telefono: "600000001", mesa: "Mesa 1", responsableId: "1" },
+  { numero: "001246", nombre: "Perla", telefono: "600000002", mesa: "Mesa 1", responsableId: "1" },
+  { numero: "004112", nombre: "Estrella", telefono: "600000003", mesa: "Mesa 2", responsableId: "2" },
+  { numero: "005010", nombre: "Sol", telefono: "600000004", mesa: "Mesa 2", responsableId: "2" },
+  { numero: "008921", nombre: "Nieve", telefono: "600000005", mesa: "Mesa 1", responsableId: "3" },
+  { numero: "009101", nombre: "Sombra", telefono: "600000006", mesa: "Mesa 2", responsableId: "3" },
 ];
 
 const collectionNames = {
@@ -39,19 +39,33 @@ function withFirestoreId(documentSnapshot) {
 }
 
 function applyRegistros(vots, registros) {
-  const byReferencia = new Map(registros.map((registro) => [registro.referencia, registro]));
+  const byNumero = new Map(registros.map((registro) => [registro.numero ?? registro.referencia, registro]));
   return vots.map((vot) => {
-    const registro = byReferencia.get(vot.referencia);
+    const registro = byNumero.get(vot.numero);
     return registro
       ? {
           ...vot,
           registrada: true,
           hora: registro.hora,
-          registradaPor: registro.mesa,
+          registradaPor: registro.registradoPor ?? registro.mesa,
           registradaEn: registro.registradaEn,
         }
       : { ...vot, registrada: false, hora: null, registradaPor: null, registradaEn: null };
   });
+}
+
+async function guardarRegistro(vot, origen) {
+  const hora = new Date().toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+  await setDoc(doc(db, collectionNames.registros, vot.numero), {
+    numero: vot.numero,
+    nombre: vot.nombre,
+    telefono: vot.telefono,
+    mesaVot: vot.mesa,
+    hora,
+    registradoPor: origen,
+    registradaEn: new Date().toISOString(),
+  });
+  return hora;
 }
 
 function Badge({ children, tone = "gray" }) {
@@ -181,17 +195,21 @@ function LoginScreen({ onLogin, responsables, mesas }) {
 }
 
 function MesaScreen({ onLogout, vots, usuario, mesas }) {
-  const [referencia, setReferencia] = useState("");
+  const mesaActual = mesas.find((item) => item.usuario === usuario);
+  const [mesaSeleccionada, setMesaSeleccionada] = useState(mesaActual?.nombre ?? mesas[0]?.nombre ?? "");
+  const [numero, setNumero] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [tipoMensaje, setTipoMensaje] = useState("gray");
+  const votsMesa = vots.filter((vot) => vot.mesa === mesaSeleccionada);
+  const pendientesMesa = votsMesa.filter((vot) => !vot.registrada);
 
   const registrar = async () => {
-    const ref = referencia.trim().toUpperCase();
-    if (!ref) return;
+    const numeroNormalizado = numero.trim();
+    if (!numeroNormalizado) return;
 
-    const existe = vots.find((o) => o.referencia === ref);
+    const existe = votsMesa.find((o) => o.numero === numeroNormalizado);
     if (!existe) {
-      setMensaje("Referencia no encontrada");
+      setMensaje("Número no encontrado en esta mesa");
       setTipoMensaje("red");
       return;
     }
@@ -202,15 +220,9 @@ function MesaScreen({ onLogout, vots, usuario, mesas }) {
       return;
     }
 
-    const hora = new Date().toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
     try {
-      await setDoc(doc(db, collectionNames.registros, ref), {
-        referencia: ref,
-        hora,
-        mesa: usuario,
-        registradaEn: new Date().toISOString(),
-      });
-      setReferencia("");
+      await guardarRegistro(existe, usuario);
+      setNumero("");
       setMensaje("Registrada correctamente");
       setTipoMensaje("green");
     } catch {
@@ -226,7 +238,7 @@ function MesaScreen({ onLogout, vots, usuario, mesas }) {
           <div className="flex items-center justify-between gap-4">
             <div>
               <h1 className="text-3xl font-bold text-slate-950">Pantalla mesa</h1>
-              <p className="mt-2 text-slate-600">Solo puede registrar referencias.</p>
+              <p className="mt-2 text-slate-600">Selecciona mesa y marca VOTs por número.</p>
               <p className="mt-1 text-sm text-slate-500">Mesa activa: {mesas.find(i => i.usuario === usuario)?.nombre || usuario}</p>
             </div>
             <LogoutButton onLogout={onLogout} />
@@ -235,17 +247,52 @@ function MesaScreen({ onLogout, vots, usuario, mesas }) {
 
         <Card>
           <h2 className="text-xl font-bold text-slate-950">Registro de entrada</h2>
-          <div className="mt-5 flex flex-col gap-4 md:flex-row">
+          <div className="mt-5 grid gap-4 md:grid-cols-[220px_1fr_auto]">
+            <select
+              value={mesaSeleccionada}
+              onChange={(e) => {
+                setMesaSeleccionada(e.target.value);
+                setNumero("");
+                setMensaje("");
+              }}
+              className="h-14 rounded-xl border border-slate-200 px-4 text-lg outline-none"
+            >
+              {mesas.map((mesa) => <option key={mesa.id} value={mesa.nombre}>{mesa.nombre}</option>)}
+            </select>
             <input
-              value={referencia}
-              onChange={(e) => setReferencia(e.target.value.toUpperCase())}
+              value={numero}
+              onChange={(e) => setNumero(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && registrar()}
-              placeholder="Referencia"
-              className="h-14 flex-1 rounded-xl border border-slate-200 px-4 text-lg outline-none"
+              placeholder="Número de VOT"
+              className="h-14 rounded-xl border border-slate-200 px-4 text-lg outline-none"
             />
             <button onClick={registrar} className="h-14 rounded-xl bg-slate-950 px-8 text-white font-semibold">Registrar</button>
           </div>
-          <div className="mt-4"><Badge tone={tipoMensaje}>{mensaje || "Esperando referencia"}</Badge></div>
+          <div className="mt-4"><Badge tone={tipoMensaje}>{mensaje || "Esperando número"}</Badge></div>
+        </Card>
+
+        <Card>
+          <h2 className="text-xl font-bold text-slate-950">Pendientes de {mesaSeleccionada}</h2>
+          <div className="mt-5 overflow-hidden rounded-xl border border-slate-200">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-100 text-slate-800">
+                <tr>
+                  <th className="px-4 py-3 text-left">Número</th>
+                  <th className="px-4 py-3 text-left">Nombre</th>
+                  <th className="px-4 py-3 text-left">Teléfono</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendientesMesa.map((vot) => (
+                  <tr key={vot.numero} className="border-t border-slate-200">
+                    <td className="px-4 py-3 font-semibold">{vot.numero}</td>
+                    <td className="px-4 py-3">{vot.nombre}</td>
+                    <td className="px-4 py-3">{vot.telefono}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Card>
       </div>
     </div>
@@ -283,19 +330,21 @@ function ResponsableScreen({ onLogout, usuario, vots, responsables }) {
             <table className="min-w-full text-sm">
               <thead className="bg-slate-100 text-slate-800">
                 <tr>
-                  <th className="px-4 py-3 text-left">Referencia</th>
+                  <th className="px-4 py-3 text-left">Número</th>
                   <th className="px-4 py-3 text-left">Nombre</th>
                   <th className="px-4 py-3 text-left">Teléfono</th>
+                  <th className="px-4 py-3 text-left">Mesa</th>
                   <th className="px-4 py-3 text-left">Hora</th>
                   <th className="px-4 py-3 text-left">Estado</th>
                 </tr>
               </thead>
               <tbody>
                 {votsResp.map((o) => (
-                  <tr key={o.referencia} className="border-t border-slate-200">
-                    <td className="px-4 py-3 font-semibold">{o.referencia}</td>
+                  <tr key={o.numero} className="border-t border-slate-200">
+                    <td className="px-4 py-3 font-semibold">{o.numero}</td>
                     <td className="px-4 py-3">{o.nombre}</td>
                     <td className="px-4 py-3">{o.telefono}</td>
+                    <td className="px-4 py-3">{o.mesa}</td>
                     <td className="px-4 py-3">{o.hora || "-"}</td>
                     <td className="px-4 py-3">{o.registrada ? <Badge tone="green">Ha entrado</Badge> : <Badge tone="amber">Falta</Badge>}</td>
                   </tr>
@@ -310,10 +359,11 @@ function ResponsableScreen({ onLogout, usuario, vots, responsables }) {
 }
 
 function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResponsables, mesas, setMesas }) {
-  const [nuevaReferencia, setNuevaReferencia] = useState("");
+  const [nuevoNumero, setNuevoNumero] = useState("");
   const [nuevoNombre, setNuevoNombre] = useState("");
   const [nuevoTelefono, setNuevoTelefono] = useState("");
   const [nuevoResponsableId, setNuevoResponsableId] = useState(responsables[0]?.id || "");
+  const [nuevaMesa, setNuevaMesa] = useState(mesas[0]?.nombre || "");
   const [mensajeImportacion, setMensajeImportacion] = useState("");
 
   const [nombreResponsable, setNombreResponsable] = useState("");
@@ -323,29 +373,62 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
   const [nombreMesa, setNombreMesa] = useState("");
   const [telefonoMesa, setTelefonoMesa] = useState("");
   const [passwordMesa, setPasswordMesa] = useState("");
+  const [panelMesa, setPanelMesa] = useState(mesas[0]?.nombre || "");
+  const [panelNumero, setPanelNumero] = useState("");
+  const [panelMensaje, setPanelMensaje] = useState("");
+  const [panelMensajeTipo, setPanelMensajeTipo] = useState("gray");
 
   const total = vots.length;
   const llegadas = vots.filter((o) => o.registrada).length;
   const pendientes = total - llegadas;
+  const votsPanelMesa = vots.filter((vot) => vot.mesa === panelMesa);
+  const pendientesPanelMesa = votsPanelMesa.filter((vot) => !vot.registrada);
+
+  const registrarDesdePanel = async () => {
+    const numeroNormalizado = panelNumero.trim();
+    if (!numeroNormalizado) return;
+
+    const existe = votsPanelMesa.find((vot) => vot.numero === numeroNormalizado);
+    if (!existe) {
+      setPanelMensaje("Número no encontrado en esta mesa");
+      setPanelMensajeTipo("red");
+      return;
+    }
+
+    if (existe.registrada) {
+      setPanelMensaje("Ya registrado");
+      setPanelMensajeTipo("amber");
+      return;
+    }
+
+    try {
+      await guardarRegistro(existe, "panel");
+      setPanelNumero("");
+      setPanelMensaje("Registrado correctamente desde panel");
+      setPanelMensajeTipo("green");
+    } catch {
+      setPanelMensaje("No se pudo guardar en Firebase");
+      setPanelMensajeTipo("red");
+    }
+  };
 
   const crearVot = () => {
-    if (!nuevaReferencia || !nuevoResponsableId) return;
-    const referencia = nuevaReferencia.toUpperCase();
-    if (vots.some((o) => o.referencia === referencia)) return;
+    if (!nuevoNumero || !nuevoResponsableId || !nuevaMesa) return;
+    const numero = nuevoNumero.trim();
+    if (vots.some((o) => o.numero === numero)) return;
 
     setBaseVots((current) => [
       ...current,
       {
-      referencia,
-      nombre: nuevoNombre,
-      telefono: nuevoTelefono,
-      responsableId: String(nuevoResponsableId),
-      hora: null,
-      registrada: false,
+        numero,
+        nombre: nuevoNombre,
+        telefono: nuevoTelefono,
+        mesa: nuevaMesa,
+        responsableId: String(nuevoResponsableId),
       },
     ]);
 
-    setNuevaReferencia("");
+    setNuevoNumero("");
     setNuevoNombre("");
     setNuevoTelefono("");
   };
@@ -365,33 +448,33 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
 
         let importados = 0;
         let errores = 0;
-        const existentes = new Set(vots.map((v) => v.referencia));
+        const existentes = new Set(vots.map((v) => v.numero));
 
         const nuevos = [];
 
         filas.forEach((fila) => {
-          const referencia = String(fila.referencia || "").trim().toUpperCase();
+          const numero = String(fila.numero || fila.referencia || "").trim();
           const nombre = String(fila.nombre || "").trim();
           const telefono = String(fila.telefono || "").trim();
+          const mesa = String(fila.mesa || "").trim();
           const nombreResponsable = String(fila.responsable || "").trim().toLowerCase();
 
           const responsable = responsables.find(
             (r) => r.nombre.trim().toLowerCase() === nombreResponsable
           );
 
-          if (!referencia || !responsable || existentes.has(referencia)) {
+          if (!numero || !mesa || !responsable || existentes.has(numero)) {
             errores += 1;
             return;
           }
 
-          existentes.add(referencia);
+          existentes.add(numero);
           nuevos.push({
-            referencia,
+            numero,
             nombre,
             telefono,
+            mesa,
             responsableId: responsable.id,
-            hora: null,
-            registrada: false,
           });
           importados += 1;
         });
@@ -465,13 +548,70 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
           <StatCard title="Pendientes" value={pendientes} />
         </div>
 
+        <Card>
+          <div className="flex flex-col gap-4 md:flex-row md:items-end">
+            <div className="flex-1">
+              <h2 className="text-2xl font-bold text-slate-950">Registro rápido por mesa</h2>
+              <p className="mt-2 text-slate-600">Selecciona una mesa, introduce el número y marca la entrada.</p>
+            </div>
+            <div className="grid gap-3 md:grid-cols-[220px_260px_auto]">
+              <select
+                value={panelMesa}
+                onChange={(e) => {
+                  setPanelMesa(e.target.value);
+                  setPanelNumero("");
+                  setPanelMensaje("");
+                }}
+                className="h-14 rounded-xl border border-slate-200 px-4 text-lg outline-none"
+              >
+                {mesas.map((mesa) => <option key={mesa.id} value={mesa.nombre}>{mesa.nombre}</option>)}
+              </select>
+              <input
+                value={panelNumero}
+                onChange={(e) => setPanelNumero(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && registrarDesdePanel()}
+                placeholder="Número"
+                className="h-14 rounded-xl border border-slate-200 px-4 text-2xl font-bold outline-none"
+              />
+              <button onClick={registrarDesdePanel} className="h-14 rounded-xl bg-slate-950 px-8 text-white font-semibold">Marcar</button>
+            </div>
+          </div>
+          <div className="mt-4"><Badge tone={panelMensajeTipo}>{panelMensaje || `${pendientesPanelMesa.length} pendientes en ${panelMesa}`}</Badge></div>
+
+          <div className="mt-6 overflow-hidden rounded-xl border border-slate-200">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-100 text-slate-800">
+                <tr>
+                  <th className="px-4 py-3 text-left">Número</th>
+                  <th className="px-4 py-3 text-left">Nombre</th>
+                  <th className="px-4 py-3 text-left">Teléfono</th>
+                  <th className="px-4 py-3 text-left">Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {votsPanelMesa.map((vot) => (
+                  <tr key={vot.numero} className="border-t border-slate-200">
+                    <td className="px-4 py-3 text-lg font-bold">{vot.numero}</td>
+                    <td className="px-4 py-3">{vot.nombre}</td>
+                    <td className="px-4 py-3">{vot.telefono}</td>
+                    <td className="px-4 py-3">{vot.registrada ? <Badge tone="green">Ha entrado</Badge> : <Badge tone="amber">Pendiente</Badge>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+
         <div className="grid gap-6 xl:grid-cols-3">
           <Card>
             <h2 className="text-lg font-bold text-slate-950">Alta de VOT</h2>
             <div className="mt-4 space-y-3">
-              <input value={nuevaReferencia} onChange={(e) => setNuevaReferencia(e.target.value.toUpperCase())} placeholder="Referencia" className="h-11 w-full rounded-xl border border-slate-200 px-4 outline-none" />
+              <input value={nuevoNumero} onChange={(e) => setNuevoNumero(e.target.value)} placeholder="Número" className="h-11 w-full rounded-xl border border-slate-200 px-4 outline-none" />
               <input value={nuevoNombre} onChange={(e) => setNuevoNombre(e.target.value)} placeholder="Nombre" className="h-11 w-full rounded-xl border border-slate-200 px-4 outline-none" />
               <input value={nuevoTelefono} onChange={(e) => setNuevoTelefono(e.target.value)} placeholder="Teléfono" className="h-11 w-full rounded-xl border border-slate-200 px-4 outline-none" />
+              <select value={nuevaMesa} onChange={(e) => setNuevaMesa(e.target.value)} className="h-11 w-full rounded-xl border border-slate-200 px-4 outline-none">
+                {mesas.map((mesa) => <option key={mesa.id} value={mesa.nombre}>{mesa.nombre}</option>)}
+              </select>
               <select value={nuevoResponsableId} onChange={(e) => setNuevoResponsableId(e.target.value)} className="h-11 w-full rounded-xl border border-slate-200 px-4 outline-none">
                 {responsables.map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}
               </select>
@@ -481,7 +621,7 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
 
           <Card>
             <h2 className="text-lg font-bold text-slate-950">Importar Excel</h2>
-            <p className="mt-2 text-sm text-slate-500">Columnas: referencia, nombre, telefono, responsable</p>
+            <p className="mt-2 text-sm text-slate-500">Columnas: numero, nombre, telefono, mesa, responsable</p>
             <div className="mt-4 space-y-3">
               <input type="file" accept=".xlsx,.xls" onChange={importarExcel} className="block w-full text-sm text-slate-700" />
               <div className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
@@ -519,9 +659,10 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
               <table className="min-w-full text-sm">
                 <thead className="bg-slate-100 text-slate-800">
                   <tr>
-                    <th className="px-4 py-3 text-left">Referencia</th>
+                    <th className="px-4 py-3 text-left">Número</th>
                     <th className="px-4 py-3 text-left">Nombre</th>
                     <th className="px-4 py-3 text-left">Teléfono</th>
+                    <th className="px-4 py-3 text-left">Mesa</th>
                     <th className="px-4 py-3 text-left">Responsable</th>
                     <th className="px-4 py-3 text-left">Hora</th>
                     <th className="px-4 py-3 text-left">Estado</th>
@@ -531,10 +672,11 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
                   {vots.map((o) => {
                     const responsable = responsables.find((r) => r.id === o.responsableId);
                     return (
-                      <tr key={o.referencia} className="border-t border-slate-200">
-                        <td className="px-4 py-3 font-semibold">{o.referencia}</td>
+                      <tr key={o.numero} className="border-t border-slate-200">
+                        <td className="px-4 py-3 font-semibold">{o.numero}</td>
                         <td className="px-4 py-3">{o.nombre}</td>
                         <td className="px-4 py-3">{o.telefono}</td>
+                        <td className="px-4 py-3">{o.mesa}</td>
                         <td className="px-4 py-3">{responsable?.nombre}</td>
                         <td className="px-4 py-3">{o.hora || "-"}</td>
                         <td className="px-4 py-3">{o.registrada ? <Badge tone="green">Ha entrado</Badge> : <Badge tone="amber">Falta</Badge>}</td>
