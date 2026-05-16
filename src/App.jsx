@@ -130,12 +130,53 @@ function normalizeRow(row) {
 
 function readCell(row, keys) {
   for (const key of keys) {
-    const value = row[normalizeKey(key)];
+    const normalizedKey = normalizeKey(key);
+    const matchingKey = Object.keys(row).find((rowKey) => rowKey === normalizedKey || rowKey.startsWith(normalizedKey));
+    const value = matchingKey ? row[matchingKey] : undefined;
     if (value !== undefined && value !== null && String(value).trim() !== "") {
       return String(value).trim();
     }
   }
   return "";
+}
+
+const excelColumns = {
+  numero: ["numero", "número", "num", "n", "nº", "no", "referencia", "ref"],
+  nombre: ["nombre", "nombre completo", "vot", "vots", "persona"],
+  telefono: ["telefono", "teléfono", "tfno", "tel", "movil", "móvil"],
+  mesa: ["mesa", "mesa electoral"],
+  colegio: ["colegio", "colegio electoral", "centro"],
+  responsable: ["responsable", "responsable vot", "coordinador", "resp"],
+};
+
+function rowHasAny(row, keys) {
+  return keys.some((key) => Object.keys(row).some((rowKey) => rowKey === normalizeKey(key) || rowKey.startsWith(normalizeKey(key))));
+}
+
+function parseExcelRows(sheet) {
+  const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+  const headerIndex = rawRows.findIndex((row) => {
+    const normalizedHeaders = row.reduce((headers, cell) => {
+      const key = normalizeKey(cell);
+      if (key) headers[key] = cell;
+      return headers;
+    }, {});
+
+    const hasNumero = rowHasAny(normalizedHeaders, excelColumns.numero);
+    const hasMesa = rowHasAny(normalizedHeaders, excelColumns.mesa);
+    const hasResponsable = rowHasAny(normalizedHeaders, excelColumns.responsable);
+    return hasNumero && hasMesa && hasResponsable;
+  });
+
+  if (headerIndex === -1) return [];
+
+  const headers = rawRows[headerIndex].map((cell) => normalizeKey(cell));
+  return rawRows.slice(headerIndex + 1).map((row) => {
+    return headers.reduce((item, header, index) => {
+      if (header) item[header] = row[index];
+      return item;
+    }, {});
+  });
 }
 
 function LogoutButton({ onLogout }) {
@@ -483,10 +524,10 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
         const workbook = XLSX.read(data, { type: "array" });
         const nombreHoja = workbook.SheetNames[0];
         const hoja = workbook.Sheets[nombreHoja];
-        const filas = XLSX.utils.sheet_to_json(hoja);
+        const filas = parseExcelRows(hoja);
 
         let importados = 0;
-        let errores = 0;
+        let errores = filas.length ? 0 : 1;
         const existentes = new Set(vots.map((v) => v.numero));
 
         const nuevos = [];
@@ -500,13 +541,12 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
         );
 
         filas.forEach((fila, index) => {
-          const row = normalizeRow(fila);
-          const numero = readCell(row, ["numero", "número", "num", "referencia", "ref"]);
-          const nombre = readCell(row, ["nombre", "vot", "vots", "persona"]);
-          const telefono = readCell(row, ["telefono", "teléfono", "tfno", "movil", "móvil"]);
-          const mesa = readCell(row, ["mesa", "mesa electoral"]);
-          const colegio = readCell(row, ["colegio", "colegio electoral", "centro"]);
-          const nombreResponsableOriginal = readCell(row, ["responsable", "responsable vot", "coordinador"]);
+          const numero = readCell(fila, excelColumns.numero);
+          const nombre = readCell(fila, excelColumns.nombre);
+          const telefono = readCell(fila, excelColumns.telefono);
+          const mesa = readCell(fila, excelColumns.mesa);
+          const colegio = readCell(fila, excelColumns.colegio);
+          const nombreResponsableOriginal = readCell(fila, excelColumns.responsable);
           const nombreResponsable = nombreResponsableOriginal.toLowerCase();
 
           if (!numero || !mesa || !nombreResponsableOriginal || existentes.has(numero)) {
@@ -519,7 +559,7 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
             responsable = {
               id: `resp-${Date.now()}-${index}`,
               nombre: nombreResponsableOriginal,
-              telefono: readCell(row, ["telefono responsable", "teléfono responsable", "movil responsable", "móvil responsable"]),
+              telefono: readCell(fila, ["telefono responsable", "teléfono responsable", "movil responsable", "móvil responsable"]),
               usuario: createUsuario(nombreResponsableOriginal, `responsable${responsablesActualizados.length + 1}`),
               password: "1234",
             };
