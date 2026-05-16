@@ -113,6 +113,31 @@ function createUsuario(nombre, fallback) {
   return normalized || fallback;
 }
 
+function normalizeKey(key) {
+  return String(key || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function normalizeRow(row) {
+  return Object.entries(row).reduce((normalized, [key, value]) => {
+    normalized[normalizeKey(key)] = value;
+    return normalized;
+  }, {});
+}
+
+function readCell(row, keys) {
+  for (const key of keys) {
+    const value = row[normalizeKey(key)];
+    if (value !== undefined && value !== null && String(value).trim() !== "") {
+      return String(value).trim();
+    }
+  }
+  return "";
+}
+
 function LogoutButton({ onLogout }) {
   return (
     <button onClick={onLogout} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium">
@@ -475,13 +500,14 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
         );
 
         filas.forEach((fila, index) => {
-          const numero = String(fila.numero || fila.referencia || "").trim();
-          const nombre = String(fila.nombre || "").trim();
-          const telefono = String(fila.telefono || "").trim();
-          const mesa = String(fila.mesa || "").trim();
-          const nombreResponsableOriginal = String(fila.responsable || "").trim();
+          const row = normalizeRow(fila);
+          const numero = readCell(row, ["numero", "número", "num", "referencia", "ref"]);
+          const nombre = readCell(row, ["nombre", "vot", "vots", "persona"]);
+          const telefono = readCell(row, ["telefono", "teléfono", "tfno", "movil", "móvil"]);
+          const mesa = readCell(row, ["mesa", "mesa electoral"]);
+          const colegio = readCell(row, ["colegio", "colegio electoral", "centro"]);
+          const nombreResponsableOriginal = readCell(row, ["responsable", "responsable vot", "coordinador"]);
           const nombreResponsable = nombreResponsableOriginal.toLowerCase();
-          const colegio = String(fila.colegio || "").trim();
 
           if (!numero || !mesa || !nombreResponsableOriginal || existentes.has(numero)) {
             errores += 1;
@@ -493,7 +519,7 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
             responsable = {
               id: `resp-${Date.now()}-${index}`,
               nombre: nombreResponsableOriginal,
-              telefono: String(fila.telefono_responsable || "").trim(),
+              telefono: readCell(row, ["telefono responsable", "teléfono responsable", "movil responsable", "móvil responsable"]),
               usuario: createUsuario(nombreResponsableOriginal, `responsable${responsablesActualizados.length + 1}`),
               password: "1234",
             };
@@ -680,7 +706,7 @@ function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResp
 
           <Card>
             <h2 className="text-lg font-bold text-slate-950">Importar Excel</h2>
-            <p className="mt-2 text-sm text-slate-500">Columnas: numero, nombre, telefono, mesa, colegio, responsable</p>
+            <p className="mt-2 text-sm text-slate-500">Columnas: numero, nombre, telefono, mesa, colegio, responsable. Acepta mayúsculas y acentos.</p>
             <div className="mt-4 space-y-3">
               <input type="file" accept=".xlsx,.xls" onChange={importarExcel} className="block w-full text-sm text-slate-700" />
               <div className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
