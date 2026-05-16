@@ -318,7 +318,7 @@ function LoginScreen({ onLogin, responsables, mesas }) {
 
 function MesaScreen({ onLogout, vots, usuario, mesas }) {
   const mesaActual = mesas.find((item) => item.usuario === usuario);
-  const [mesaSeleccionada, setMesaSeleccionada] = useState(mesaActual?.nombre ?? mesas[0]?.nombre ?? "");
+  const mesaSeleccionada = mesaActual?.nombre ?? "";
   const [numero, setNumero] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [tipoMensaje, setTipoMensaje] = useState("gray");
@@ -370,17 +370,9 @@ function MesaScreen({ onLogout, vots, usuario, mesas }) {
         <Card>
           <h2 className="text-xl font-bold text-slate-950">Registro de entrada</h2>
           <div className="mt-5 grid gap-4 md:grid-cols-[220px_1fr_auto]">
-            <select
-              value={mesaSeleccionada}
-              onChange={(e) => {
-                setMesaSeleccionada(e.target.value);
-                setNumero("");
-                setMensaje("");
-              }}
-              className="h-14 rounded-xl border border-slate-200 px-4 text-lg outline-none"
-            >
-              {mesas.map((mesa) => <option key={mesa.id} value={mesa.nombre}>{mesa.nombre}</option>)}
-            </select>
+            <div className="flex h-14 items-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-lg font-semibold text-slate-800">
+              {mesaSeleccionada || "Mesa no encontrada"}
+            </div>
             <input
               value={numero}
               onChange={(e) => setNumero(e.target.value)}
