@@ -95,6 +95,13 @@ function StatCard({ title, value }) {
   );
 }
 
+function whatsappUrl(telefono, nombre) {
+  const cleanedPhone = String(telefono || "").replace(/\D/g, "");
+  const phone = cleanedPhone.startsWith("34") ? cleanedPhone : `34${cleanedPhone}`;
+  const text = encodeURIComponent(`Hola ${nombre}, te recordamos que aún no consta tu entrada.`);
+  return `https://wa.me/${phone}?text=${text}`;
+}
+
 function LogoutButton({ onLogout }) {
   return (
     <button onClick={onLogout} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium">
@@ -201,7 +208,6 @@ function MesaScreen({ onLogout, vots, usuario, mesas }) {
   const [mensaje, setMensaje] = useState("");
   const [tipoMensaje, setTipoMensaje] = useState("gray");
   const votsMesa = vots.filter((vot) => vot.mesa === mesaSeleccionada);
-  const pendientesMesa = votsMesa.filter((vot) => !vot.registrada);
 
   const registrar = async () => {
     const numeroNormalizado = numero.trim();
@@ -271,29 +277,6 @@ function MesaScreen({ onLogout, vots, usuario, mesas }) {
           <div className="mt-4"><Badge tone={tipoMensaje}>{mensaje || "Esperando número"}</Badge></div>
         </Card>
 
-        <Card>
-          <h2 className="text-xl font-bold text-slate-950">Pendientes de {mesaSeleccionada}</h2>
-          <div className="mt-5 overflow-hidden rounded-xl border border-slate-200">
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-100 text-slate-800">
-                <tr>
-                  <th className="px-4 py-3 text-left">Número</th>
-                  <th className="px-4 py-3 text-left">Nombre</th>
-                  <th className="px-4 py-3 text-left">Teléfono</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pendientesMesa.map((vot) => (
-                  <tr key={vot.numero} className="border-t border-slate-200">
-                    <td className="px-4 py-3 font-semibold">{vot.numero}</td>
-                    <td className="px-4 py-3">{vot.nombre}</td>
-                    <td className="px-4 py-3">{vot.telefono}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
       </div>
     </div>
   );
@@ -336,6 +319,7 @@ function ResponsableScreen({ onLogout, usuario, vots, responsables }) {
                   <th className="px-4 py-3 text-left">Mesa</th>
                   <th className="px-4 py-3 text-left">Hora</th>
                   <th className="px-4 py-3 text-left">Estado</th>
+                  <th className="px-4 py-3 text-left">Aviso</th>
                 </tr>
               </thead>
               <tbody>
@@ -347,6 +331,20 @@ function ResponsableScreen({ onLogout, usuario, vots, responsables }) {
                     <td className="px-4 py-3">{o.mesa}</td>
                     <td className="px-4 py-3">{o.hora || "-"}</td>
                     <td className="px-4 py-3">{o.registrada ? <Badge tone="green">Ha entrado</Badge> : <Badge tone="amber">Falta</Badge>}</td>
+                    <td className="px-4 py-3">
+                      {!o.registrada ? (
+                        <a
+                          className="inline-flex items-center rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
+                          href={whatsappUrl(o.telefono, o.nombre)}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          WhatsApp
+                        </a>
+                      ) : (
+                        <span className="text-slate-400">-</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
