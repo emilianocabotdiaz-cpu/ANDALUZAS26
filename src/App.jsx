@@ -3,13 +3,10 @@ import * as XLSX from "xlsx";
 import {
   collection,
   doc,
-  getDocs,
   onSnapshot,
   orderBy,
   query,
   setDoc,
-  updateDoc,
-  writeBatch,
 } from "firebase/firestore";
 import { db } from "./firebase";
 
@@ -19,9 +16,9 @@ const responsablesIniciales = [
   { id: "3", nombre: "Antonio Ruiz", telefono: "600555666", usuario: "antonio", password: "1234" },
 ];
 
-const interactoresIniciales = [
-  { id: "1", nombre: "Pedro Gómez", telefono: "600777111", usuario: "interactor1", password: "1234", activo: true },
-  { id: "2", nombre: "Lucía Romero", telefono: "600777222", usuario: "interactor2", password: "1234", activo: true },
+const mesasIniciales = [
+  { id: "1", nombre: "Mesa 1", telefono: "600777111", usuario: "mesa1", password: "1234", activo: true },
+  { id: "2", nombre: "Mesa 2", telefono: "600777222", usuario: "mesa2", password: "1234", activo: true },
 ];
 
 const votsIniciales = [
@@ -34,25 +31,27 @@ const votsIniciales = [
 ];
 
 const collectionNames = {
-  responsables: "responsables",
-  interactores: "interactores",
-  vots: "vots",
+  registros: "registros",
 };
 
 function withFirestoreId(documentSnapshot) {
   return { id: documentSnapshot.id, ...documentSnapshot.data() };
 }
 
-async function seedCollectionIfEmpty(collectionName, items) {
-  const snapshot = await getDocs(collection(db, collectionName));
-  if (!snapshot.empty) return;
-
-  const batch = writeBatch(db);
-  items.forEach((item) => {
-    const documentId = item.referencia ?? item.id;
-    batch.set(doc(db, collectionName, String(documentId)), item);
+function applyRegistros(vots, registros) {
+  const byReferencia = new Map(registros.map((registro) => [registro.referencia, registro]));
+  return vots.map((vot) => {
+    const registro = byReferencia.get(vot.referencia);
+    return registro
+      ? {
+          ...vot,
+          registrada: true,
+          hora: registro.hora,
+          registradaPor: registro.mesa,
+          registradaEn: registro.registradaEn,
+        }
+      : { ...vot, registrada: false, hora: null, registradaPor: null, registradaEn: null };
   });
-  await batch.commit();
 }
 
 function Badge({ children, tone = "gray" }) {
@@ -90,13 +89,13 @@ function LogoutButton({ onLogout }) {
   );
 }
 
-function LoginScreen({ onLogin, responsables, interactores }) {
-  const [rol, setRol] = useState("cooperativa");
+function LoginScreen({ onLogin, responsables, mesas }) {
+  const [rol, setRol] = useState("panel");
   const [usuario, setUsuario] = useState("admin");
   const [password, setPassword] = useState("");
 
   const entrar = () => {
-    if (rol === "cooperativa") {
+    if (rol === "panel") {
       if (password === "17052026") onLogin({ rol, usuario: "admin" });
       else alert("Contraseña incorrecta");
       return;
@@ -109,8 +108,8 @@ function LoginScreen({ onLogin, responsables, interactores }) {
       return;
     }
 
-    if (rol === "interactor") {
-      const user = interactores.find((i) => i.usuario === usuario && i.password === password && i.activo);
+    if (rol === "mesa") {
+      const user = mesas.find((i) => i.usuario === usuario && i.password === password && i.activo);
       if (user) onLogin({ rol, usuario });
       else alert("Credenciales incorrectas");
     }
@@ -133,13 +132,13 @@ function LoginScreen({ onLogin, responsables, interactores }) {
                   setRol(nuevoRol);
                   setPassword("");
                   if (nuevoRol === "responsable") setUsuario(responsables[0]?.usuario || "");
-                  else if (nuevoRol === "interactor") setUsuario(interactores[0]?.usuario || "");
+                  else if (nuevoRol === "mesa") setUsuario(mesas[0]?.usuario || "");
                   else setUsuario("admin");
                 }}
                 className="h-12 w-full rounded-xl border border-slate-200 px-4 outline-none"
               >
-                <option value="cooperativa">Panel de control</option>
-                <option value="interactor">Interactor</option>
+                <option value="panel">Panel de control</option>
+                <option value="mesa">Mesa</option>
                 <option value="responsable">Responsable</option>
               </select>
             </div>
@@ -153,11 +152,11 @@ function LoginScreen({ onLogin, responsables, interactores }) {
               </div>
             )}
 
-            {rol === "interactor" && (
+            {rol === "mesa" && (
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">Interactor</label>
+                <label className="mb-2 block text-sm font-medium text-slate-700">Mesa</label>
                 <select value={usuario} onChange={(e) => setUsuario(e.target.value)} className="h-12 w-full rounded-xl border border-slate-200 px-4 outline-none">
-                  {interactores.filter(i => i.activo).map((i) => <option key={i.id} value={i.usuario}>{i.nombre}</option>)}
+                  {mesas.filter(i => i.activo).map((i) => <option key={i.id} value={i.usuario}>{i.nombre}</option>)}
                 </select>
               </div>
             )}
@@ -181,7 +180,7 @@ function LoginScreen({ onLogin, responsables, interactores }) {
   );
 }
 
-function InteractorScreen({ onLogout, vots, usuario, interactores }) {
+function MesaScreen({ onLogout, vots, usuario, mesas }) {
   const [referencia, setReferencia] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [tipoMensaje, setTipoMensaje] = useState("gray");
@@ -205,10 +204,10 @@ function InteractorScreen({ onLogout, vots, usuario, interactores }) {
 
     const hora = new Date().toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
     try {
-      await updateDoc(doc(db, collectionNames.vots, ref), {
-        registrada: true,
+      await setDoc(doc(db, collectionNames.registros, ref), {
+        referencia: ref,
         hora,
-        registradaPor: usuario,
+        mesa: usuario,
         registradaEn: new Date().toISOString(),
       });
       setReferencia("");
@@ -226,9 +225,9 @@ function InteractorScreen({ onLogout, vots, usuario, interactores }) {
         <Card>
           <div className="flex items-center justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-slate-950">Pantalla interactor</h1>
+              <h1 className="text-3xl font-bold text-slate-950">Pantalla mesa</h1>
               <p className="mt-2 text-slate-600">Solo puede registrar referencias.</p>
-              <p className="mt-1 text-sm text-slate-500">Interactor activo: {interactores.find(i => i.usuario === usuario)?.nombre || usuario}</p>
+              <p className="mt-1 text-sm text-slate-500">Mesa activa: {mesas.find(i => i.usuario === usuario)?.nombre || usuario}</p>
             </div>
             <LogoutButton onLogout={onLogout} />
           </div>
@@ -310,7 +309,7 @@ function ResponsableScreen({ onLogout, usuario, vots, responsables }) {
   );
 }
 
-function CooperativaScreen({ onLogout, vots, responsables, interactores }) {
+function PanelControlScreen({ onLogout, vots, setBaseVots, responsables, setResponsables, mesas, setMesas }) {
   const [nuevaReferencia, setNuevaReferencia] = useState("");
   const [nuevoNombre, setNuevoNombre] = useState("");
   const [nuevoTelefono, setNuevoTelefono] = useState("");
@@ -321,27 +320,30 @@ function CooperativaScreen({ onLogout, vots, responsables, interactores }) {
   const [telefonoResponsable, setTelefonoResponsable] = useState("");
   const [passwordResponsable, setPasswordResponsable] = useState("");
 
-  const [nombreInteractor, setNombreInteractor] = useState("");
-  const [telefonoInteractor, setTelefonoInteractor] = useState("");
-  const [passwordInteractor, setPasswordInteractor] = useState("");
+  const [nombreMesa, setNombreMesa] = useState("");
+  const [telefonoMesa, setTelefonoMesa] = useState("");
+  const [passwordMesa, setPasswordMesa] = useState("");
 
   const total = vots.length;
   const llegadas = vots.filter((o) => o.registrada).length;
   const pendientes = total - llegadas;
 
-  const crearVot = async () => {
+  const crearVot = () => {
     if (!nuevaReferencia || !nuevoResponsableId) return;
     const referencia = nuevaReferencia.toUpperCase();
     if (vots.some((o) => o.referencia === referencia)) return;
 
-    await setDoc(doc(db, collectionNames.vots, referencia), {
+    setBaseVots((current) => [
+      ...current,
+      {
       referencia,
       nombre: nuevoNombre,
       telefono: nuevoTelefono,
       responsableId: String(nuevoResponsableId),
       hora: null,
       registrada: false,
-    });
+      },
+    ]);
 
     setNuevaReferencia("");
     setNuevoNombre("");
@@ -353,7 +355,7 @@ function CooperativaScreen({ onLogout, vots, responsables, interactores }) {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = async (e) => {
+    reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target.result);
         const workbook = XLSX.read(data, { type: "array" });
@@ -394,13 +396,7 @@ function CooperativaScreen({ onLogout, vots, responsables, interactores }) {
           importados += 1;
         });
 
-        if (nuevos.length) {
-          const batch = writeBatch(db);
-          nuevos.forEach((vot) => {
-            batch.set(doc(db, collectionNames.vots, vot.referencia), vot);
-          });
-          await batch.commit();
-        }
+        if (nuevos.length) setBaseVots((prev) => [...prev, ...nuevos]);
         setMensajeImportacion(`Importación completada. Correctos: ${importados}. Errores: ${errores}.`);
       } catch (error) {
         setMensajeImportacion("Error al leer el Excel.");
@@ -411,37 +407,43 @@ function CooperativaScreen({ onLogout, vots, responsables, interactores }) {
     event.target.value = "";
   };
 
-  const crearResponsable = async () => {
+  const crearResponsable = () => {
     if (!nombreResponsable || !passwordResponsable) return;
     const usuario = nombreResponsable.toLowerCase().split(" ")[0];
     const id = String(Date.now());
-    await setDoc(doc(db, collectionNames.responsables, id), {
+    setResponsables((current) => [
+      ...current,
+      {
       id,
       nombre: nombreResponsable,
       telefono: telefonoResponsable,
       usuario,
       password: passwordResponsable,
-    });
+      },
+    ]);
     setNombreResponsable("");
     setTelefonoResponsable("");
     setPasswordResponsable("");
   };
 
-  const crearInteractor = async () => {
-    if (!nombreInteractor || !passwordInteractor) return;
-    const usuario = nombreInteractor.toLowerCase().split(" ")[0] + interactores.length;
+  const crearMesa = () => {
+    if (!nombreMesa || !passwordMesa) return;
+    const usuario = nombreMesa.toLowerCase().split(" ")[0] + mesas.length;
     const id = String(Date.now());
-    await setDoc(doc(db, collectionNames.interactores, id), {
+    setMesas((current) => [
+      ...current,
+      {
       id,
-      nombre: nombreInteractor,
-      telefono: telefonoInteractor,
+      nombre: nombreMesa,
+      telefono: telefonoMesa,
       usuario,
-      password: passwordInteractor,
+      password: passwordMesa,
       activo: true,
-    });
-    setNombreInteractor("");
-    setTelefonoInteractor("");
-    setPasswordInteractor("");
+      },
+    ]);
+    setNombreMesa("");
+    setTelefonoMesa("");
+    setPasswordMesa("");
   };
 
   return (
@@ -502,12 +504,12 @@ function CooperativaScreen({ onLogout, vots, responsables, interactores }) {
 
         <div className="grid gap-6 xl:grid-cols-2">
           <Card>
-            <h2 className="text-lg font-bold text-slate-950">Alta de interactor</h2>
+            <h2 className="text-lg font-bold text-slate-950">Alta de mesa</h2>
             <div className="mt-4 space-y-3">
-              <input value={nombreInteractor} onChange={(e) => setNombreInteractor(e.target.value)} placeholder="Nombre" className="h-11 w-full rounded-xl border border-slate-200 px-4 outline-none" />
-              <input value={telefonoInteractor} onChange={(e) => setTelefonoInteractor(e.target.value)} placeholder="Teléfono" className="h-11 w-full rounded-xl border border-slate-200 px-4 outline-none" />
-              <input type="password" value={passwordInteractor} onChange={(e) => setPasswordInteractor(e.target.value)} placeholder="Contraseña" className="h-11 w-full rounded-xl border border-slate-200 px-4 outline-none" />
-              <button onClick={crearInteractor} className="h-11 w-full rounded-xl bg-slate-950 text-white font-semibold">Crear interactor</button>
+              <input value={nombreMesa} onChange={(e) => setNombreMesa(e.target.value)} placeholder="Nombre" className="h-11 w-full rounded-xl border border-slate-200 px-4 outline-none" />
+              <input value={telefonoMesa} onChange={(e) => setTelefonoMesa(e.target.value)} placeholder="Teléfono" className="h-11 w-full rounded-xl border border-slate-200 px-4 outline-none" />
+              <input type="password" value={passwordMesa} onChange={(e) => setPasswordMesa(e.target.value)} placeholder="Contraseña" className="h-11 w-full rounded-xl border border-slate-200 px-4 outline-none" />
+              <button onClick={crearMesa} className="h-11 w-full rounded-xl bg-slate-950 text-white font-semibold">Crear mesa</button>
             </div>
           </Card>
 
@@ -551,52 +553,33 @@ function CooperativaScreen({ onLogout, vots, responsables, interactores }) {
 
 export default function App() {
   const [sesion, setSesion] = useState(null);
-  const [vots, setVots] = useState([]);
-  const [responsables, setResponsables] = useState([]);
-  const [interactores, setInteractores] = useState([]);
+  const [baseVots, setBaseVots] = useState(votsIniciales);
+  const [registros, setRegistros] = useState([]);
+  const [responsables, setResponsables] = useState(responsablesIniciales);
+  const [mesas, setMesas] = useState(mesasIniciales);
   const [cargando, setCargando] = useState(true);
   const [firebaseError, setFirebaseError] = useState("");
+  const vots = applyRegistros(baseVots, registros);
 
   useEffect(() => {
     let cancelled = false;
-    let unsubscribers = [];
 
-    async function connectFirestore() {
-      try {
-        await Promise.all([
-          seedCollectionIfEmpty(collectionNames.responsables, responsablesIniciales),
-          seedCollectionIfEmpty(collectionNames.interactores, interactoresIniciales),
-          seedCollectionIfEmpty(collectionNames.vots, votsIniciales),
-        ]);
-
+    const unsubscribe = onSnapshot(
+      query(collection(db, collectionNames.registros), orderBy("registradaEn")),
+      (snapshot) => {
         if (cancelled) return;
-
-        unsubscribers = [
-          onSnapshot(query(collection(db, collectionNames.responsables), orderBy("nombre")), (snapshot) => {
-            setResponsables(snapshot.docs.map(withFirestoreId));
-          }),
-          onSnapshot(query(collection(db, collectionNames.interactores), orderBy("nombre")), (snapshot) => {
-            setInteractores(snapshot.docs.map(withFirestoreId));
-          }),
-          onSnapshot(query(collection(db, collectionNames.vots), orderBy("referencia")), (snapshot) => {
-            setVots(snapshot.docs.map((item) => item.data()));
-            setCargando(false);
-          }),
-        ];
-      } catch (error) {
+        setRegistros(snapshot.docs.map(withFirestoreId));
+        setCargando(false);
+      },
+      () => {
         setFirebaseError("No se pudo conectar con Firebase. Revisa Firestore y sus reglas.");
-        setResponsables(responsablesIniciales);
-        setInteractores(interactoresIniciales);
-        setVots(votsIniciales);
         setCargando(false);
       }
-    }
-
-    connectFirestore();
+    );
 
     return () => {
       cancelled = true;
-      unsubscribers.forEach((unsubscribe) => unsubscribe());
+      unsubscribe();
     };
   }, []);
 
@@ -619,13 +602,13 @@ export default function App() {
         {firebaseError ? (
           <div className="bg-rose-50 px-5 py-3 text-sm font-medium text-rose-700">{firebaseError}</div>
         ) : null}
-        <LoginScreen onLogin={setSesion} responsables={responsables} interactores={interactores} />
+        <LoginScreen onLogin={setSesion} responsables={responsables} mesas={mesas} />
       </>
     );
   }
 
-  if (sesion.rol === "interactor") {
-    return <InteractorScreen onLogout={() => setSesion(null)} vots={vots} usuario={sesion.usuario} interactores={interactores} />;
+  if (sesion.rol === "mesa") {
+    return <MesaScreen onLogout={() => setSesion(null)} vots={vots} usuario={sesion.usuario} mesas={mesas} />;
   }
 
   if (sesion.rol === "responsable") {
@@ -633,11 +616,14 @@ export default function App() {
   }
 
   return (
-    <CooperativaScreen
+    <PanelControlScreen
       onLogout={() => setSesion(null)}
       vots={vots}
+      setBaseVots={setBaseVots}
       responsables={responsables}
-      interactores={interactores}
+      setResponsables={setResponsables}
+      mesas={mesas}
+      setMesas={setMesas}
     />
   );
 }
