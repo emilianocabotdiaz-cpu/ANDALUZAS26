@@ -1,25 +1,59 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import * as XLSX from "xlsx";
+import {
+  collection,
+  doc,
+  getDocs,
+  onSnapshot,
+  orderBy,
+  query,
+  setDoc,
+  updateDoc,
+  writeBatch,
+} from "firebase/firestore";
+import { db } from "./firebase";
 
 const responsablesIniciales = [
-  { id: 1, nombre: "Juan Pérez", telefono: "600111222", usuario: "juan", password: "1234" },
-  { id: 2, nombre: "María Gómez", telefono: "600333444", usuario: "maria", password: "1234" },
-  { id: 3, nombre: "Antonio Ruiz", telefono: "600555666", usuario: "antonio", password: "1234" },
+  { id: "1", nombre: "Juan Pérez", telefono: "600111222", usuario: "juan", password: "1234" },
+  { id: "2", nombre: "María Gómez", telefono: "600333444", usuario: "maria", password: "1234" },
+  { id: "3", nombre: "Antonio Ruiz", telefono: "600555666", usuario: "antonio", password: "1234" },
 ];
 
 const interactoresIniciales = [
-  { id: 1, nombre: "Pedro Gómez", telefono: "600777111", usuario: "interactor1", password: "1234", activo: true },
-  { id: 2, nombre: "Lucía Romero", telefono: "600777222", usuario: "interactor2", password: "1234", activo: true },
+  { id: "1", nombre: "Pedro Gómez", telefono: "600777111", usuario: "interactor1", password: "1234", activo: true },
+  { id: "2", nombre: "Lucía Romero", telefono: "600777222", usuario: "interactor2", password: "1234", activo: true },
 ];
 
 const votsIniciales = [
-  { referencia: "ES-001245", nombre: "Luna", telefono: "600000001", responsableId: 1, hora: "18:41", registrada: true },
-  { referencia: "ES-001246", nombre: "Perla", telefono: "600000002", responsableId: 1, hora: null, registrada: false },
-  { referencia: "ES-004112", nombre: "Estrella", telefono: "600000003", responsableId: 2, hora: "18:37", registrada: true },
-  { referencia: "ES-005010", nombre: "Sol", telefono: "600000004", responsableId: 2, hora: null, registrada: false },
-  { referencia: "ES-008921", nombre: "Nieve", telefono: "600000005", responsableId: 3, hora: "18:39", registrada: true },
-  { referencia: "ES-009101", nombre: "Sombra", telefono: "600000006", responsableId: 3, hora: null, registrada: false },
+  { referencia: "ES-001245", nombre: "Luna", telefono: "600000001", responsableId: "1", hora: "18:41", registrada: true },
+  { referencia: "ES-001246", nombre: "Perla", telefono: "600000002", responsableId: "1", hora: null, registrada: false },
+  { referencia: "ES-004112", nombre: "Estrella", telefono: "600000003", responsableId: "2", hora: "18:37", registrada: true },
+  { referencia: "ES-005010", nombre: "Sol", telefono: "600000004", responsableId: "2", hora: null, registrada: false },
+  { referencia: "ES-008921", nombre: "Nieve", telefono: "600000005", responsableId: "3", hora: "18:39", registrada: true },
+  { referencia: "ES-009101", nombre: "Sombra", telefono: "600000006", responsableId: "3", hora: null, registrada: false },
 ];
+
+const collectionNames = {
+  responsables: "responsables",
+  interactores: "interactores",
+  vots: "vots",
+};
+
+function withFirestoreId(documentSnapshot) {
+  return { id: documentSnapshot.id, ...documentSnapshot.data() };
+}
+
+async function seedCollectionIfEmpty(collectionName, items) {
+  const snapshot = await getDocs(collection(db, collectionName));
+  if (!snapshot.empty) return;
+
+  const batch = writeBatch(db);
+  items.forEach((item) => {
+    const documentId = item.referencia ?? item.id;
+    batch.set(doc(db, collectionName, String(documentId)), item);
+  });
+  await batch.commit();
+}
 
 function Badge({ children, tone = "gray" }) {
   const styles = {
@@ -147,12 +181,12 @@ function LoginScreen({ onLogin, responsables, interactores }) {
   );
 }
 
-function InteractorScreen({ onLogout, vots, setVots, usuario, interactores }) {
+function InteractorScreen({ onLogout, vots, usuario, interactores }) {
   const [referencia, setReferencia] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [tipoMensaje, setTipoMensaje] = useState("gray");
 
-  const registrar = () => {
+  const registrar = async () => {
     const ref = referencia.trim().toUpperCase();
     if (!ref) return;
 
@@ -170,10 +204,20 @@ function InteractorScreen({ onLogout, vots, setVots, usuario, interactores }) {
     }
 
     const hora = new Date().toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
-    setVots((prev) => prev.map((o) => (o.referencia === ref ? { ...o, registrada: true, hora } : o)));
-    setReferencia("");
-    setMensaje("Registrada correctamente");
-    setTipoMensaje("green");
+    try {
+      await updateDoc(doc(db, collectionNames.vots, ref), {
+        registrada: true,
+        hora,
+        registradaPor: usuario,
+        registradaEn: new Date().toISOString(),
+      });
+      setReferencia("");
+      setMensaje("Registrada correctamente");
+      setTipoMensaje("green");
+    } catch {
+      setMensaje("No se pudo guardar en Firebase");
+      setTipoMensaje("red");
+    }
   };
 
   return (
@@ -266,7 +310,7 @@ function ResponsableScreen({ onLogout, usuario, vots, responsables }) {
   );
 }
 
-function CooperativaScreen({ onLogout, vots, setVots, responsables, setResponsables, interactores, setInteractores }) {
+function CooperativaScreen({ onLogout, vots, responsables, interactores }) {
   const [nuevaReferencia, setNuevaReferencia] = useState("");
   const [nuevoNombre, setNuevoNombre] = useState("");
   const [nuevoTelefono, setNuevoTelefono] = useState("");
@@ -285,21 +329,19 @@ function CooperativaScreen({ onLogout, vots, setVots, responsables, setResponsab
   const llegadas = vots.filter((o) => o.registrada).length;
   const pendientes = total - llegadas;
 
-  const crearVot = () => {
+  const crearVot = async () => {
     if (!nuevaReferencia || !nuevoResponsableId) return;
-    if (vots.some((o) => o.referencia === nuevaReferencia.toUpperCase())) return;
+    const referencia = nuevaReferencia.toUpperCase();
+    if (vots.some((o) => o.referencia === referencia)) return;
 
-    setVots([
-      ...vots,
-      {
-        referencia: nuevaReferencia.toUpperCase(),
-        nombre: nuevoNombre,
-        telefono: nuevoTelefono,
-        responsableId: Number(nuevoResponsableId),
-        hora: null,
-        registrada: false,
-      },
-    ]);
+    await setDoc(doc(db, collectionNames.vots, referencia), {
+      referencia,
+      nombre: nuevoNombre,
+      telefono: nuevoTelefono,
+      responsableId: String(nuevoResponsableId),
+      hora: null,
+      registrada: false,
+    });
 
     setNuevaReferencia("");
     setNuevoNombre("");
@@ -311,7 +353,7 @@ function CooperativaScreen({ onLogout, vots, setVots, responsables, setResponsab
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const data = new Uint8Array(e.target.result);
         const workbook = XLSX.read(data, { type: "array" });
@@ -352,7 +394,13 @@ function CooperativaScreen({ onLogout, vots, setVots, responsables, setResponsab
           importados += 1;
         });
 
-        if (nuevos.length) setVots((prev) => [...prev, ...nuevos]);
+        if (nuevos.length) {
+          const batch = writeBatch(db);
+          nuevos.forEach((vot) => {
+            batch.set(doc(db, collectionNames.vots, vot.referencia), vot);
+          });
+          await batch.commit();
+        }
         setMensajeImportacion(`Importación completada. Correctos: ${importados}. Errores: ${errores}.`);
       } catch (error) {
         setMensajeImportacion("Error al leer el Excel.");
@@ -363,25 +411,34 @@ function CooperativaScreen({ onLogout, vots, setVots, responsables, setResponsab
     event.target.value = "";
   };
 
-  const crearResponsable = () => {
+  const crearResponsable = async () => {
     if (!nombreResponsable || !passwordResponsable) return;
     const usuario = nombreResponsable.toLowerCase().split(" ")[0];
-    setResponsables([
-      ...responsables,
-      { id: Date.now(), nombre: nombreResponsable, telefono: telefonoResponsable, usuario, password: passwordResponsable },
-    ]);
+    const id = String(Date.now());
+    await setDoc(doc(db, collectionNames.responsables, id), {
+      id,
+      nombre: nombreResponsable,
+      telefono: telefonoResponsable,
+      usuario,
+      password: passwordResponsable,
+    });
     setNombreResponsable("");
     setTelefonoResponsable("");
     setPasswordResponsable("");
   };
 
-  const crearInteractor = () => {
+  const crearInteractor = async () => {
     if (!nombreInteractor || !passwordInteractor) return;
     const usuario = nombreInteractor.toLowerCase().split(" ")[0] + interactores.length;
-    setInteractores([
-      ...interactores,
-      { id: Date.now(), nombre: nombreInteractor, telefono: telefonoInteractor, usuario, password: passwordInteractor, activo: true },
-    ]);
+    const id = String(Date.now());
+    await setDoc(doc(db, collectionNames.interactores, id), {
+      id,
+      nombre: nombreInteractor,
+      telefono: telefonoInteractor,
+      usuario,
+      password: passwordInteractor,
+      activo: true,
+    });
     setNombreInteractor("");
     setTelefonoInteractor("");
     setPasswordInteractor("");
@@ -494,14 +551,81 @@ function CooperativaScreen({ onLogout, vots, setVots, responsables, setResponsab
 
 export default function App() {
   const [sesion, setSesion] = useState(null);
-  const [vots, setVots] = useState(votsIniciales);
-  const [responsables, setResponsables] = useState(responsablesIniciales);
-  const [interactores, setInteractores] = useState(interactoresIniciales);
+  const [vots, setVots] = useState([]);
+  const [responsables, setResponsables] = useState([]);
+  const [interactores, setInteractores] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [firebaseError, setFirebaseError] = useState("");
 
-  if (!sesion) return <LoginScreen onLogin={setSesion} responsables={responsables} interactores={interactores} />;
+  useEffect(() => {
+    let cancelled = false;
+    let unsubscribers = [];
+
+    async function connectFirestore() {
+      try {
+        await Promise.all([
+          seedCollectionIfEmpty(collectionNames.responsables, responsablesIniciales),
+          seedCollectionIfEmpty(collectionNames.interactores, interactoresIniciales),
+          seedCollectionIfEmpty(collectionNames.vots, votsIniciales),
+        ]);
+
+        if (cancelled) return;
+
+        unsubscribers = [
+          onSnapshot(query(collection(db, collectionNames.responsables), orderBy("nombre")), (snapshot) => {
+            setResponsables(snapshot.docs.map(withFirestoreId));
+          }),
+          onSnapshot(query(collection(db, collectionNames.interactores), orderBy("nombre")), (snapshot) => {
+            setInteractores(snapshot.docs.map(withFirestoreId));
+          }),
+          onSnapshot(query(collection(db, collectionNames.vots), orderBy("referencia")), (snapshot) => {
+            setVots(snapshot.docs.map((item) => item.data()));
+            setCargando(false);
+          }),
+        ];
+      } catch (error) {
+        setFirebaseError("No se pudo conectar con Firebase. Revisa Firestore y sus reglas.");
+        setResponsables(responsablesIniciales);
+        setInteractores(interactoresIniciales);
+        setVots(votsIniciales);
+        setCargando(false);
+      }
+    }
+
+    connectFirestore();
+
+    return () => {
+      cancelled = true;
+      unsubscribers.forEach((unsubscribe) => unsubscribe());
+    };
+  }, []);
+
+  if (cargando) {
+    return (
+      <div className="min-h-screen bg-slate-100 px-5 py-8 md:px-8">
+        <div className="mx-auto max-w-xl">
+          <Card>
+            <h1 className="text-3xl font-bold text-slate-950">Cargando datos</h1>
+            <p className="mt-2 text-slate-600">Conectando con Firebase...</p>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (!sesion) {
+    return (
+      <>
+        {firebaseError ? (
+          <div className="bg-rose-50 px-5 py-3 text-sm font-medium text-rose-700">{firebaseError}</div>
+        ) : null}
+        <LoginScreen onLogin={setSesion} responsables={responsables} interactores={interactores} />
+      </>
+    );
+  }
 
   if (sesion.rol === "interactor") {
-    return <InteractorScreen onLogout={() => setSesion(null)} vots={vots} setVots={setVots} usuario={sesion.usuario} interactores={interactores} />;
+    return <InteractorScreen onLogout={() => setSesion(null)} vots={vots} usuario={sesion.usuario} interactores={interactores} />;
   }
 
   if (sesion.rol === "responsable") {
@@ -512,11 +636,8 @@ export default function App() {
     <CooperativaScreen
       onLogout={() => setSesion(null)}
       vots={vots}
-      setVots={setVots}
       responsables={responsables}
-      setResponsables={setResponsables}
       interactores={interactores}
-      setInteractores={setInteractores}
     />
   );
 }
